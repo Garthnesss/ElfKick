@@ -1,0 +1,328 @@
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/3rdparty/AudioFile.h work/AudIO-fixed/AudIO/3rdparty/AudioFile.h
+--- 0700-AAM/AudIO/AudIO/3rdparty/AudioFile.h	2026-10-28 13:50:55.801265499 -0700
++++ work/AudIO-fixed/AudIO/3rdparty/AudioFile.h	2026-10-28 13:55:16.774389067 -0700
+@@ -37,6 +37,7 @@
+ #define NOMINMAX
+ #endif
+ 
++#include <cstdint>
+ #include <iostream>
+ #include <vector>
+ #include <cassert>
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Core/DesignImpl.cpp work/AudIO-fixed/AudIO/Core/DesignImpl.cpp
+--- 0700-AAM/AudIO/AudIO/Core/DesignImpl.cpp	2026-10-28 13:50:55.840941504 -0700
++++ work/AudIO-fixed/AudIO/Core/DesignImpl.cpp	2026-10-28 14:01:09.410950817 -0700
+@@ -25,7 +25,7 @@
+         _running.store( true );
+     }
+ 
+-    inline void DesignImpl::process( Buffer<float>& Buffer )
++    void DesignImpl::process( Buffer<float>& Buffer )
+     {
+         auto dInGain     = designInputGain.getNext( _blockSize );
+         auto dOutGain    = designOutputGain.getNext( _blockSize );
+@@ -141,7 +141,7 @@
+         _clearRequest      = false;
+     }
+ 
+-    inline void DesignImpl::clear()
++    void DesignImpl::clear()
+     {
+         _clearRequest.store( true );
+         if( !_running.load() )
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Core/DesignImpl.h work/AudIO-fixed/AudIO/Core/DesignImpl.h
+--- 0700-AAM/AudIO/AudIO/Core/DesignImpl.h	2026-10-28 13:50:55.840941504 -0700
++++ work/AudIO-fixed/AudIO/Core/DesignImpl.h	2026-10-28 14:02:52.109305501 -0700
+@@ -2,6 +2,7 @@
+ 
+ #include "../Includes/Platform.h"
+ 
++#include "../Includes/Design.h"
+ #include "Bus.h"
+ #include "MeterEngine.h"
+ 
+@@ -12,7 +13,7 @@
+ {
+ 
+     // STATIC helper functions...
+-    bool _find( objectMeta& meta, std::list<objectMeta*>& l )
++    inline bool _find( objectMeta& meta, std::list<objectMeta*>& l )
+     {
+         return std::find( l.begin(), l.end(), &meta ) != l.end();
+     }
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Daw/DawEngine.cpp work/AudIO-fixed/AudIO/Daw/DawEngine.cpp
+--- 0700-AAM/AudIO/AudIO/Daw/DawEngine.cpp	2026-10-28 13:50:55.848186927 -0700
++++ work/AudIO-fixed/AudIO/Daw/DawEngine.cpp	2026-10-28 13:58:13.424683278 -0700
+@@ -1,4 +1,5 @@
+ #include "DawEngine.h"
++#include <thread>
+ #include "DawSequence.h"
+ 
+ #if defined( AUDIO_OBJECT_AUDIO_FILE_RECORDER ) && ( AUDIO_OBJECT_AUDIO_FILE_RECORDER > 0 )
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Daw/DawInserts.h work/AudIO-fixed/AudIO/Daw/DawInserts.h
+--- 0700-AAM/AudIO/AudIO/Daw/DawInserts.h	2026-10-28 13:50:55.848941505 -0700
++++ work/AudIO-fixed/AudIO/Daw/DawInserts.h	2026-10-28 13:58:13.414442164 -0700
+@@ -5,6 +5,7 @@
+ 
+ #include <string>
+ #include <array>
++#include <atomic>
+ 
+ namespace AudIO
+ {
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Daw/DawRouting.cpp work/AudIO-fixed/AudIO/Daw/DawRouting.cpp
+--- 0700-AAM/AudIO/AudIO/Daw/DawRouting.cpp	2026-10-28 13:50:55.848941505 -0700
++++ work/AudIO-fixed/AudIO/Daw/DawRouting.cpp	2026-10-28 13:58:13.424248494 -0700
+@@ -1,5 +1,7 @@
+ 
+ #include "DawBus.h"
++#include <thread>
++#include <chrono>
+ #include <algorithm>
+ 
+ namespace AudIO
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Devices/StereoInOut.cpp work/AudIO-fixed/AudIO/Devices/StereoInOut.cpp
+--- 0700-AAM/AudIO/AudIO/Devices/StereoInOut.cpp	2026-10-28 13:50:55.855941505 -0700
++++ work/AudIO-fixed/AudIO/Devices/StereoInOut.cpp	2026-10-28 13:54:21.712721688 -0700
+@@ -75,7 +75,7 @@
+             }
+         }
+ 
+-        doProcess();
++        IAudioDevice::process( _buffer );
+ 
+         // Copy to actual audio device buffer
+         for( int ch = 0; ch < _buffer.getNumOutputChannels(); ++ch )
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Devices/StereoOut.cpp work/AudIO-fixed/AudIO/Devices/StereoOut.cpp
+--- 0700-AAM/AudIO/AudIO/Devices/StereoOut.cpp	2026-10-28 13:50:55.856571870 -0700
++++ work/AudIO-fixed/AudIO/Devices/StereoOut.cpp	2026-10-28 13:54:21.710944629 -0700
+@@ -64,7 +64,7 @@
+ 
+     void StereoOut::process( float* data )
+     {
+-        doProcess();
++        IAudioDevice::process( _buffer );
+         // Copy to actual audio device buffer
+         for( int ch = 0; ch < _buffer.getNumOutputChannels(); ++ch )
+         {
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Dsp/lfo.h work/AudIO-fixed/AudIO/Dsp/lfo.h
+--- 0700-AAM/AudIO/AudIO/Dsp/lfo.h	2026-10-28 13:50:55.875941505 -0700
++++ work/AudIO-fixed/AudIO/Dsp/lfo.h	2026-10-28 14:01:09.421950817 -0700
+@@ -102,9 +102,9 @@
+ 
+         inline void  recalculate() noexcept override;
+         inline float poly_blep( float hp ) const;
+-        inline void  advance_internal( unsigned int NumSamples ) noexcept;
++        void  advance_internal( unsigned int NumSamples ) noexcept;
+ 
+-        inline float nextSample_internal( unsigned int NumSamples ) noexcept;
++        float nextSample_internal( unsigned int NumSamples ) noexcept;
+         inline float nextSample_polyBlep( unsigned int NumSamples ) noexcept;
+     };
+ 
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Example/BasicUsage/CMakeLists.txt work/AudIO-fixed/AudIO/Example/BasicUsage/CMakeLists.txt
+--- 0700-AAM/AudIO/AudIO/Example/BasicUsage/CMakeLists.txt	2026-10-28 13:50:55.877941505 -0700
++++ work/AudIO-fixed/AudIO/Example/BasicUsage/CMakeLists.txt	2026-10-28 13:53:11.953943570 -0700
+@@ -24,7 +24,7 @@
+ 
+ # Adding something we can run - Output name matches target name
+ add_executable(BasicExample
+-  main.cpp
++  Main.cpp
+ )
+ 
+ # Make sure you link your targets with this command. It can also link libraries and
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Example/Daw/DawExampleMain.cpp work/AudIO-fixed/AudIO/Example/Daw/DawExampleMain.cpp
+--- 0700-AAM/AudIO/AudIO/Example/Daw/DawExampleMain.cpp	2026-10-28 13:50:55.878353383 -0700
++++ work/AudIO-fixed/AudIO/Example/Daw/DawExampleMain.cpp	2026-10-28 14:02:52.111297016 -0700
+@@ -5,6 +5,8 @@
+ #include "StereoInOut.h"
+ 
+ #include <iostream>
++#include <thread>
++#include <chrono>
+ 
+ int main()
+ {
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Example/DynamicPatching/CMakeLists.txt work/AudIO-fixed/AudIO/Example/DynamicPatching/CMakeLists.txt
+--- 0700-AAM/AudIO/AudIO/Example/DynamicPatching/CMakeLists.txt	2026-10-28 13:50:55.878353383 -0700
++++ work/AudIO-fixed/AudIO/Example/DynamicPatching/CMakeLists.txt	2026-10-28 13:53:11.956943570 -0700
+@@ -24,7 +24,7 @@
+ 
+ # Adding something we can run - Output name matches target name
+ add_executable(DynamicPatch
+-  main.cpp
++  Main.cpp
+ )
+ 
+ # Make sure you link your targets with this command. It can also link libraries and
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Example/Subdesign/CMakeLists.txt work/AudIO-fixed/AudIO/Example/Subdesign/CMakeLists.txt
+--- 0700-AAM/AudIO/AudIO/Example/Subdesign/CMakeLists.txt	2026-10-28 13:50:55.878540344 -0700
++++ work/AudIO-fixed/AudIO/Example/Subdesign/CMakeLists.txt	2026-10-28 13:53:11.954416904 -0700
+@@ -24,7 +24,7 @@
+ 
+ # Adding something we can run - Output name matches target name
+ add_executable(Subdesign
+-  main.cpp
++  Main.cpp
+ )
+ 
+ # Make sure you link your targets with this command. It can also link libraries and
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Example/Synth/CMakeLists.txt work/AudIO-fixed/AudIO/Example/Synth/CMakeLists.txt
+--- 0700-AAM/AudIO/AudIO/Example/Synth/CMakeLists.txt	2026-10-28 13:50:55.878752093 -0700
++++ work/AudIO-fixed/AudIO/Example/Synth/CMakeLists.txt	2026-10-28 13:53:11.957943570 -0700
+@@ -29,7 +29,7 @@
+ 
+ # Adding something we can run - Output name matches target name
+ add_executable(Synth
+-  main.cpp
++  Main.cpp
+   ${IMGUI_DIR}/backends/imgui_impl_opengl2.cpp
+   ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/ImGuiFileDialog/ImGuiFileDialog.cpp
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Includes/AudioDataTypes.h work/AudIO-fixed/AudIO/Includes/AudioDataTypes.h
+--- 0700-AAM/AudIO/AudIO/Includes/AudioDataTypes.h	2026-10-28 13:50:56.034941507 -0700
++++ work/AudIO-fixed/AudIO/Includes/AudioDataTypes.h	2026-10-28 13:55:16.773547761 -0700
+@@ -1,4 +1,5 @@
+ #pragma once
++#include <cstdint>
+ 
+ #include <string>
+ #include <vector>
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Objects/ADSR.h work/AudIO-fixed/AudIO/Objects/ADSR.h
+--- 0700-AAM/AudIO/AudIO/Objects/ADSR.h	2026-10-28 13:50:56.038484239 -0700
++++ work/AudIO-fixed/AudIO/Objects/ADSR.h	2026-10-28 13:55:16.775411244 -0700
+@@ -1,4 +1,5 @@
+ #pragma once
++#include <atomic>
+ 
+ #if !defined( JUCE_VERSION )
+     #include "../Includes/AudioObject.h"
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Objects/PlayBack.h work/AudIO-fixed/AudIO/Objects/PlayBack.h
+--- 0700-AAM/AudIO/AudIO/Objects/PlayBack.h	2026-10-28 13:50:56.038941507 -0700
++++ work/AudIO-fixed/AudIO/Objects/PlayBack.h	2026-10-28 13:55:16.775803334 -0700
+@@ -1,4 +1,5 @@
+ #pragma once
++#include <atomic>
+ 
+ #include "VolumeAndPan.h"
+ #include "../3rdparty/AudioFile.h"
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Objects/Recorder.h work/AudIO-fixed/AudIO/Objects/Recorder.h
+--- 0700-AAM/AudIO/AudIO/Objects/Recorder.h	2026-10-28 13:50:56.038941507 -0700
++++ work/AudIO-fixed/AudIO/Objects/Recorder.h	2026-10-28 13:55:16.780405667 -0700
+@@ -1,4 +1,5 @@
+ #pragma once
++#include <atomic>
+ 
+ #if !defined( JUCE_VERSION )
+     #include "../3rdparty/AudioFile.h"
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Objects/SFSynth.cpp work/AudIO-fixed/AudIO/Objects/SFSynth.cpp
+--- 0700-AAM/AudIO/AudIO/Objects/SFSynth.cpp	2026-10-28 13:50:56.038941507 -0700
++++ work/AudIO-fixed/AudIO/Objects/SFSynth.cpp	2026-10-28 14:06:40.826545375 -0700
+@@ -49,7 +49,7 @@
+         _tsf->setMaxVoices(48); //TODO Causes a crash
+     }
+ 
+-    void SFSynth::setParameter( uint32_t index, float value )
++    void SFSynth::setParameter( int index, float value )
+     {
+         switch( index )
+         {
+@@ -61,7 +61,7 @@
+         }
+     }
+ 
+-    float SFSynth::getParameter( uint32_t index )
++    float SFSynth::getParameter( int index )
+     {
+         switch( index )
+         {
+@@ -102,13 +102,13 @@
+         return "SFSynth";
+     }
+ 
+-    void SFSynth::getParameterLabel( uint32_t index, char* text )
++    void SFSynth::getParameterLabel( int index, char* text )
+     {
+         if( text )
+             strcpy( text, utils::emptyString );
+     }
+ 
+-    void SFSynth::getParameterName( uint32_t index, char* text )
++    void SFSynth::getParameterName( int index, char* text )
+     {
+         if( text )
+         {
+@@ -124,8 +124,9 @@
+ 
+     void SFSynth::prepareToPlay( uint32_t samplerate, uint32_t blocksize )
+     {
+-        _sampleRate = samplerate;
+-        _blockSize = blocksize;
++        Object::prepareToPlay( samplerate, blocksize );
++        if( !_tsf )
++            return;
+         _tsf->setOutputSpecs( OutputMode::StereoUnweaved, blocksize, samplerate, m_gain );
+ 
+ 
+@@ -144,10 +145,10 @@
+     {
+         if( !m_bypass && _tsf )
+         {
+-            _tsf->renderMono( buffer.getOutputBuffer(0), _blockSize );
++            _tsf->renderMono( buffer.getOutputBuffer(0), blockSize() );
+             if( buffer.getNumOutputChannels() > 1 )
+             {
+-                memcpy( buffer.getOutputBuffer( 1 ), buffer.getOutputBuffer( 0 ), _blockSize * sizeof( float ) );
++                memcpy( buffer.getOutputBuffer( 1 ), buffer.getOutputBuffer( 0 ), blockSize() * sizeof( float ) );
+             }
+         }
+     }
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/AudIO/Objects/SFSynth.h work/AudIO-fixed/AudIO/Objects/SFSynth.h
+--- 0700-AAM/AudIO/AudIO/Objects/SFSynth.h	2026-10-28 13:50:56.038941507 -0700
++++ work/AudIO-fixed/AudIO/Objects/SFSynth.h	2026-10-28 13:55:16.780888333 -0700
+@@ -31,11 +31,11 @@
+         void setDefaultSoundFont();
+ 
+         void        prepareToPlay( uint32_t samplerate, uint32_t blocksize ) override;
+-        void        setParameter( uint32_t index, float value ) override;
+-        float       getParameter( uint32_t index ) override;
++        void        setParameter( int index, float value ) override;
++        float       getParameter( int index ) override;
+         const char* getType() const override;
+-        void        getParameterLabel( uint32_t index, char* text ) override;
+-        void        getParameterName( uint32_t index, char* text ) override;
++        void        getParameterLabel( int index, char* text ) override;
++        void        getParameterName( int index, char* text ) override;
+         int         getNumParameters() override { return kParamMax; }
+         float       getMin( uint32_t index ) const override;
+         float       getMax( uint32_t index ) const override;
+diff -ru '--exclude=*.o' 0700-AAM/AudIO/CMakeLists.txt work/AudIO-fixed/CMakeLists.txt
+--- 0700-AAM/AudIO/CMakeLists.txt	2026-10-28 13:50:56.728941518 -0700
++++ work/AudIO-fixed/CMakeLists.txt	2026-10-28 14:02:52.114315707 -0700
+@@ -62,7 +62,7 @@
+ # (But usually don't do this, except maybe for C++ standard)
+ file(GLOB_RECURSE Includes "AudIO/Includes/*.h" "AudIO/Includes/*.hpp")
+ file(GLOB_RECURSE 3rdParty "AudIO/3rdparty/*.cpp" "AudIO/3rdparty/*.h" "AudIO/3rdparty/*.hpp")
+-file(GLOB_RECURSE core "AudIO/core/*.cpp" "AudIO/core/*.h")
++file(GLOB_RECURSE core "AudIO/Core/*.cpp" "AudIO/Core/*.h")
+ file(GLOB_RECURSE daw "AudIO/Daw/*.cpp" "AudIO/Daw/*.h")
+ file(GLOB_RECURSE devices "AudIO/Devices/*.cpp" "AudIO/Devices/*.c" "AudIO/Devices/*.h")
+ file(GLOB_RECURSE dsp "AudIO/Dsp/*.cpp" "AudIO/Dsp/*.h")
+@@ -84,7 +84,7 @@
+ )
+ 
+ target_include_directories(AudIO_Core PUBLIC "AudIO/Includes" "AudIO/3rdparty" "AudIO/Devices" "AudIO/Objects" "AudIO/Dsp" )
+-target_include_directories(AudIO_Core PRIVATE "AudIO/core" )
++target_include_directories(AudIO_Core PRIVATE "AudIO/Core" )
+ 
+ ####
+ #### DAW CORE...
+@@ -126,6 +126,7 @@
+ target_compile_features(AudIO_Core PRIVATE cxx_std_17)
+ target_compile_features(DAW_Core PRIVATE cxx_std_17)
+ target_compile_features(AirWindows_plugins PRIVATE cxx_std_17)
++target_compile_definitions(DAW_Core PUBLIC AUDIO_DAW_EXTENSIONS=1)
+ 
+ # Find packages go here.
+ # Add 

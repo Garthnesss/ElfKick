@@ -1,0 +1,13 @@
+build*/
+.3rdPartySourceCache/
+KT_KickEM
+KT_Kick
+*.o
+*.a
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+juce_patch_applied.flag
+Kick/modules/3rdParty/juce_serialport/*
+!Kick/modules/3rdParty/juce_serialport/README.ELFKICK.md
