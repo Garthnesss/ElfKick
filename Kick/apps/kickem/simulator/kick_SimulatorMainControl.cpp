@@ -1,5 +1,6 @@
 #include "kick_SimulatorMainControl.h"
 #include "kick_SimulatorInterfaceImpl.h"
+#include <contracts/dcl/dcl_contracts.h>
 
 #define MAIN_CTRL_BUTTON_WIDTH 93
 #define MAIN_CTRL_BUTTON_HEIGHT 63
@@ -7,9 +8,12 @@ namespace sim
 {
 SimulatorMainControl1::SimulatorMainControl1()
 {
-    fullLevels.makeVisibleAndAddListner(this);
-    levels16.makeVisibleAndAddListner(this);
-    erase.makeVisibleAndAddListner(this);
+    addAndMakeVisible(fullLevels);
+    fullLevels.addListener(this);
+    addAndMakeVisible(levels16);
+    levels16.addListener(this);
+    addAndMakeVisible(erase);
+    erase.addListener(this);
 }
 
 void SimulatorMainControl1::resized()
@@ -32,7 +36,7 @@ void SimulatorMainControl1::paint(juce::Graphics& g)
     drawSubFunc(g, levels16, "NOTES");
 }
 
-void SimulatorMainControl1::buttonClicked(Button* button)
+void SimulatorMainControl1::buttonClicked(juce::Button* button)
 {
     if (button == &fullLevels)
     {
@@ -51,38 +55,77 @@ void SimulatorMainControl1::buttonClicked(Button* button)
 SimulatorMainControl::SimulatorMainControl()
     : impl(new SimulatorIntrefaceImpl)
 {
-    bankA       .makeVisibleAddListnerAndAddRadioGroup(this, 2);
-    bankB       .makeVisibleAddListnerAndAddRadioGroup(this, 2);
-    bankC       .makeVisibleAddListnerAndAddRadioGroup(this, 2);
-    bankD       .makeVisibleAddListnerAndAddRadioGroup(this, 2);
+    addAndMakeVisible(bankA);
+    bankA.addListener(this);
+    bankA.setRadioGroupId(2);
+    addAndMakeVisible(bankB);
+    bankB.addListener(this);
+    bankB.setRadioGroupId(2);
+    addAndMakeVisible(bankC);
+    bankC.addListener(this);
+    bankC.setRadioGroupId(2);
+    addAndMakeVisible(bankD);
+    bankD.addListener(this);
+    bankD.setRadioGroupId(2);
     bankA.setToggleState(true, juce::dontSendNotification);
     
     mainBtn.setToggleState(true, juce::dontSendNotification);
-    mainBtn     .makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    browseBtn   .makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    trackMixBtn .makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    trackMuteBtn.makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    nextSeqBtn.makeVisibleAddListnerAndAddRadioGroup(this, 1);
+    addAndMakeVisible(mainBtn);
+    mainBtn.addListener(this);
+    mainBtn.setRadioGroupId(1);
+    addAndMakeVisible(browseBtn);
+    browseBtn.addListener(this);
+    browseBtn.setRadioGroupId(1);
+    addAndMakeVisible(trackMixBtn);
+    trackMixBtn.addListener(this);
+    trackMixBtn.setRadioGroupId(1);
+    addAndMakeVisible(trackMuteBtn);
+    trackMuteBtn.addListener(this);
+    trackMuteBtn.setRadioGroupId(1);
+    addAndMakeVisible(nextSeqBtn);
+    nextSeqBtn.addListener(this);
+    nextSeqBtn.setRadioGroupId(1);
     
-    stepSeq.makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    tc.makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    sampler.makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    sampleEdit.makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    programEdit.makeVisibleAddListnerAndAddRadioGroup(this, 1);
+    addAndMakeVisible(stepSeq);
+    stepSeq.addListener(this);
+    stepSeq.setRadioGroupId(1);
+    addAndMakeVisible(tc);
+    tc.addListener(this);
+    tc.setRadioGroupId(1);
+    addAndMakeVisible(sampler);
+    sampler.addListener(this);
+    sampler.setRadioGroupId(1);
+    addAndMakeVisible(sampleEdit);
+    sampleEdit.addListener(this);
+    sampleEdit.setRadioGroupId(1);
+    addAndMakeVisible(programEdit);
+    programEdit.addListener(this);
+    programEdit.setRadioGroupId(1);
 
-    tapTempoBtn.makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    noteRepeatBtn.makeVisibleAddListnerAndAddRadioGroup(this, 1);
+    addAndMakeVisible(tapTempoBtn);
+    tapTempoBtn.addListener(this);
+    tapTempoBtn.setRadioGroupId(1);
+    addAndMakeVisible(noteRepeatBtn);
+    noteRepeatBtn.addListener(this);
+    noteRepeatBtn.setRadioGroupId(1);
 
-    menuBtn.makeVisibleAddListnerAndAddRadioGroup(this, 1);
+    addAndMakeVisible(menuBtn);
+    menuBtn.addListener(this);
+    menuBtn.setRadioGroupId(1);
     addAndMakeVisible(shiftBtn);
 
-    backBtn.makeVisibleAndAddListner(this);
-    copyBtn.makeVisibleAndAddListner(this);
-    plusBtn.makeVisibleAndAddListner(this);
-    minusBtn.makeVisibleAndAddListner(this);
+    addAndMakeVisible(backBtn);
+    backBtn.addListener(this);
+    addAndMakeVisible(copyBtn);
+    copyBtn.addListener(this);
+    addAndMakeVisible(plusBtn);
+    plusBtn.addListener(this);
+    addAndMakeVisible(minusBtn);
+    minusBtn.addListener(this);
     addAndMakeVisible(centralRotary);
-    centralKnobClick.makeVisibleAndAddListner(this);
-    centralRotary.showTitleAndValue(false, Slider::TextBoxBelow);
+    addAndMakeVisible(centralKnobClick);
+    centralKnobClick.addListener(this);
+    centralRotary.showTitleAndValue(false, juce::Slider::TextBoxBelow);
     centralRotary.setDisplayProportions(.6f, .2f, .2f);
     centralRotary.setSelectionEnabled(false);
     centralRotary.setRange(0, 127);
@@ -90,13 +133,13 @@ SimulatorMainControl::SimulatorMainControl()
     {
         std::vector<char> data;
         int currentValue = (int)std::round(value);
-        data.push_back((int8)(currentValue - centralRotaryValue));
+        data.push_back((juce::int8)(currentValue - centralRotaryValue));
         centralRotaryValue = currentValue;
         DBG(currentValue);
         if (data[0] < 0)
-            impl->hwInputReceived.emit(mt::Kick::HwControlCommands::centralKnobCCW, data);
+            impl->hwInputReceived(contracts::DeviceControlContracts::EN_KNOB_CCW, data);
         else
-            impl->hwInputReceived.emit(mt::Kick::HwControlCommands::centralKnobCW, data);
+            impl->hwInputReceived(contracts::DeviceControlContracts::EN_KNOB_CW, data);
     };
 
 }
@@ -105,11 +148,11 @@ SimulatorMainControl::~SimulatorMainControl()
 {
 }
 
-void SimulatorMainControl::buttonClicked(Button* button)
+void SimulatorMainControl::buttonClicked(juce::Button* button)
 {
     if (button == &centralKnobClick)
     {
-        impl->hwInputReceived.emit(mt::Kick::HwControlCommands::CentralKnobClick, {});
+        impl->hwInputReceived((int)contracts::DeviceControlContracts::EN_KNOB_ENTER, std::vector<char>{});
         return;
     }
 
@@ -117,30 +160,30 @@ void SimulatorMainControl::buttonClicked(Button* button)
     if (button == &bankA)
     {
         if (shiFtPressed)
-            bankChanged.emit(mt::Kick::HwControlCommands::BankE);
+            bankChanged(contracts::DeviceControlContracts::EN_BANK_E);
         else
-            bankChanged.emit(mt::Kick::HwControlCommands::BankA);
+            bankChanged(contracts::DeviceControlContracts::EN_BANK_A);
     }
     else if (button == &bankB)
     {
         if (shiFtPressed)
-            bankChanged.emit(mt::Kick::HwControlCommands::BankF);
+            bankChanged(contracts::DeviceControlContracts::EN_BANK_F);
         else
-            bankChanged.emit(mt::Kick::HwControlCommands::BankB);
+            bankChanged(contracts::DeviceControlContracts::EN_BANK_B);
     }
     else if (button == &bankC)
     {
         if (shiFtPressed)
-            bankChanged.emit(mt::Kick::HwControlCommands::BankG);
+            bankChanged(contracts::DeviceControlContracts::EN_BANK_G);
         else
-            bankChanged.emit(mt::Kick::HwControlCommands::BankC);
+            bankChanged(contracts::DeviceControlContracts::EN_BANK_C);
     }
     else if (button == &bankD)
     {
         if (shiFtPressed)
-            bankChanged.emit(mt::Kick::HwControlCommands::BankH);
+            bankChanged(contracts::DeviceControlContracts::EN_BANK_H);
         else
-            bankChanged.emit(mt::Kick::HwControlCommands::BankD);
+            bankChanged(contracts::DeviceControlContracts::EN_BANK_D);
     }
 
     if (!button->getToggleState())
@@ -149,45 +192,45 @@ void SimulatorMainControl::buttonClicked(Button* button)
     std::vector<char> data;
     if (shiftBtn.getToggleState())
     {
-        if (button == &bankA) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::BankE, data);
-        else if (button == &bankB) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::BankF, data);
-        else if (button == &bankC) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::BankG, data);
-        else if (button == &bankD) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::BankH, data);
-        else if (button == &mainBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Grid, data);
-        else if (button == &browseBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Save, data);
-        else if (button == &trackMixBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::PadMix, data);
-        else if (button == &trackMuteBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::PadMute, data);
-        else if (button == &nextSeqBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Fx, data);
-        else if (button == &tapTempoBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Master, data);
-        else if (button == &noteRepeatBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Latch, data);
-        else if (button == &stepSeq) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Automation, data);
-        else if (button == &tc) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::OnOff, data);
-        else if (button == &sampler) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Looper, data);
-        else if (button == &sampleEdit) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::LinkEdit, data);
-        else if (button == &programEdit) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::MidiControl, data);
-        else if (button == &menuBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Prefs, data);
-        else if (button == &backBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Copy, data);
+        if (button == &bankA) impl->hwInputReceived(contracts::DeviceControlContracts::EN_BANK_E, data);
+        else if (button == &bankB) impl->hwInputReceived(contracts::DeviceControlContracts::EN_BANK_F, data);
+        else if (button == &bankC) impl->hwInputReceived(contracts::DeviceControlContracts::EN_BANK_G, data);
+        else if (button == &bankD) impl->hwInputReceived(contracts::DeviceControlContracts::EN_BANK_H, data);
+        else if (button == &mainBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_GRID, data);
+        else if (button == &browseBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_SAVE, data);
+        else if (button == &trackMixBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_PAD_MIX, data);
+        else if (button == &trackMuteBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_PAD_MUTE, data);
+        else if (button == &nextSeqBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_FX, data);
+        else if (button == &tapTempoBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_MASTER, data);
+        else if (button == &noteRepeatBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_LATCH, data);
+        else if (button == &stepSeq) impl->hwInputReceived(contracts::DeviceControlContracts::EN_AUTOMATION, data);
+        else if (button == &tc) impl->hwInputReceived(contracts::DeviceControlContracts::EN_ON_OFF, data);
+        else if (button == &sampler) impl->hwInputReceived(contracts::DeviceControlContracts::EN_LOOPER, data);
+        else if (button == &sampleEdit) impl->hwInputReceived(contracts::DeviceControlContracts::EN_LINK_EDIT, data);
+        else if (button == &programEdit) impl->hwInputReceived(contracts::DeviceControlContracts::EN_MIDI_CONTROL, data);
+        else if (button == &menuBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_PREF, data);
+        else if (button == &backBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_COPY, data);
     }
     else
     {
-        if (button == &bankA) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::BankA, data);
-        else if (button == &bankB) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::BankB, data);
-        else if (button == &bankC) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::BankC, data);
-        else if (button == &bankD) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::BankD, data);
-        else if (button == &mainBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Main, data);
-        else if (button == &browseBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Browse, data);
-        else if (button == &trackMixBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::TrackMix, data);
-        else if (button == &trackMuteBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::TrackMute, data);
-        else if (button == &nextSeqBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::NextSeq, data);
-        else if (button == &tapTempoBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::TapTempo, data);
-        else if (button == &noteRepeatBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::NoteRepeat, data);
-        else if (button == &stepSeq) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::StepSeq, data);
-        else if (button == &tc) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Tc, data);
-        else if (button == &sampler) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Sampler, data);
-        else if (button == &sampleEdit) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::SampleEdit, data);
-        else if (button == &programEdit) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::ProgramEdit, data);
-        else if (button == &menuBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Menu, data);
-        else if (button == &backBtn) impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Undo, data);
+        if (button == &bankA) impl->hwInputReceived(contracts::DeviceControlContracts::EN_BANK_A, data);
+        else if (button == &bankB) impl->hwInputReceived(contracts::DeviceControlContracts::EN_BANK_B, data);
+        else if (button == &bankC) impl->hwInputReceived(contracts::DeviceControlContracts::EN_BANK_C, data);
+        else if (button == &bankD) impl->hwInputReceived(contracts::DeviceControlContracts::EN_BANK_D, data);
+        else if (button == &mainBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_MAINMODE, data);
+        else if (button == &browseBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_BROWSE, data);
+        else if (button == &trackMixBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_TRACK_MIX, data);
+        else if (button == &trackMuteBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_TRACK_MUTE, data);
+        else if (button == &nextSeqBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_NEXT_SEQ, data);
+        else if (button == &tapTempoBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_TAP_TEMPO, data);
+        else if (button == &noteRepeatBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_NOTE_REPEAT, data);
+        else if (button == &stepSeq) impl->hwInputReceived(contracts::DeviceControlContracts::EN_STEP_SEQ, data);
+        else if (button == &tc) impl->hwInputReceived(contracts::DeviceControlContracts::EN_TC, data);
+        else if (button == &sampler) impl->hwInputReceived(contracts::DeviceControlContracts::EN_SAMPLER, data);
+        else if (button == &sampleEdit) impl->hwInputReceived(contracts::DeviceControlContracts::EN_SAMPLE_EDIT, data);
+        else if (button == &programEdit) impl->hwInputReceived(contracts::DeviceControlContracts::EN_PROG_EDIT, data);
+        else if (button == &menuBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_MENU, data);
+        else if (button == &backBtn) impl->hwInputReceived(contracts::DeviceControlContracts::EN_BACK, data);
     }
 }
 

@@ -20,6 +20,10 @@
  */
 #pragma once
 
+// ElfKick: EMPTY::SampleBuffer below needs juce_audio_basics; common only
+// guarantees juce_gui_basics.
+#include <juce_audio_basics/juce_audio_basics.h>
+
 namespace BPM
 {
     static constexpr float MIN{ 20 };
@@ -100,7 +104,11 @@ namespace QUANTIZE
 
 namespace EMPTY
 {
-    static const juce::ValueTree VTState{};
+    static const juce::ValueTree       VTState{};
+    // ElfKick: used by engine code (EMPTY::String, EMPTY::SampleBuffer) but
+    // missing from the released tree.
+    static const juce::String          String{};
+    static const juce::AudioBuffer<float> SampleBuffer{};
 }
 
 namespace CONSTANTS

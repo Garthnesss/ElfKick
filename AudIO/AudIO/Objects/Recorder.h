@@ -1,8 +1,12 @@
 #pragma once
 #include <atomic>
 
+// ElfKick: AudioFile.h must be included unconditionally (like PlayBack.h) —
+// AudioRecorder holds a std::unique_ptr<AudioFile<float>> member, and in a
+// JUCE build nothing else pulls the header in.
+#include "../3rdparty/AudioFile.h"
+
 #if !defined( JUCE_VERSION )
-    #include "../3rdparty/AudioFile.h"
     #include "VolumeAndPan.h"
 #endif
 

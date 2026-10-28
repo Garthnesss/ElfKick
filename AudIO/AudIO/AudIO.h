@@ -42,16 +42,34 @@
  */
 
 // AUDIO Configuration
+// ElfKick: feature switches are #ifndef-guarded so a build can override them;
+// the app (Kick) build needs the DAW extensions and the file recorder object.
+// Standalone builds keep working — their CMake sets AUDIO_DAW_EXTENSIONS=1
+// on DAW_Core already.
 //#define AUDIO_ONLY_CORE                  ( 0 )
-#define AUDIO_DAW_CORE                   ( 1 )
-#define AUDIO_JUCE_EXTENSIONS            ( 1 )
+#ifndef AUDIO_DAW_CORE
+    #define AUDIO_DAW_CORE                   ( 1 )
+#endif
+#ifndef AUDIO_JUCE_EXTENSIONS
+    #define AUDIO_JUCE_EXTENSIONS            ( 1 )
+#endif
 
-#define AUDIO_DAW_EXTENSIONS             ( 0 )
+#ifndef AUDIO_DAW_EXTENSIONS
+    #define AUDIO_DAW_EXTENSIONS             ( 1 )
+#endif
 
-#define AUDIO_OBJECT_AUDIO_READER_WRITER ( 0 )
-#define AUDIO_OBJECT_AUDIO_FILE_PLAYBACK ( 0 )
-#define AUDIO_OBJECT_AUDIO_FILE_RECORDER ( 0 )
-#define AUDIO_OBJECT_SF_SYNTH            ( 0 )
+#ifndef AUDIO_OBJECT_AUDIO_READER_WRITER
+    #define AUDIO_OBJECT_AUDIO_READER_WRITER ( 0 )
+#endif
+#ifndef AUDIO_OBJECT_AUDIO_FILE_PLAYBACK
+    #define AUDIO_OBJECT_AUDIO_FILE_PLAYBACK ( 0 )
+#endif
+#ifndef AUDIO_OBJECT_AUDIO_FILE_RECORDER
+    #define AUDIO_OBJECT_AUDIO_FILE_RECORDER ( 1 )
+#endif
+#ifndef AUDIO_OBJECT_SF_SYNTH
+    #define AUDIO_OBJECT_SF_SYNTH            ( 0 )
+#endif
 
 #pragma once
 #ifndef AUDIO_H_INCLUDE

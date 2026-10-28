@@ -20,6 +20,10 @@
  */
 
 #pragma once
+// ElfKick: juce::AudioThumbnail / AudioThumbnailCache / AudioThumbnailBase
+// (used below) live in juce_audio_utils; nothing in this module's include
+// chain pulled it in.
+#include <juce_audio_utils/juce_audio_utils.h>
 #include "mt_audio_interface_types.h"
 namespace mt
 {

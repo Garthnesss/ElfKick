@@ -1,5 +1,6 @@
 #include "kick_SimulatorControls.h"
 #include "kick_SimulatorInterfaceImpl.h"
+#include "kick_Simulator.h"
 namespace sim
 {
 #define SIM_TRANSPORT_CONTROL_WIDTH 81
@@ -8,10 +9,10 @@ namespace sim
 SimQlinkControls::SimQlinkControls()
 {
     impl = new SimulatorIntrefaceImpl;
-    qlink1.showTitleAndValue(true, Slider::TextBoxBelow, Justification::centred);
-    qlink2.showTitleAndValue(true, Slider::TextBoxBelow, Justification::centred);
-    qlink3.showTitleAndValue(true, Slider::TextBoxBelow, Justification::centred);
-    qlink4.showTitleAndValue(true, Slider::TextBoxBelow, Justification::centred);
+    qlink1.showTitleAndValue(true, juce::Slider::TextBoxBelow, juce::Justification::centred);
+    qlink2.showTitleAndValue(true, juce::Slider::TextBoxBelow, juce::Justification::centred);
+    qlink3.showTitleAndValue(true, juce::Slider::TextBoxBelow, juce::Justification::centred);
+    qlink4.showTitleAndValue(true, juce::Slider::TextBoxBelow, juce::Justification::centred);
     
     qlink1.setDisplayProportions(.6f, .2f, .2f);
     qlink2.setDisplayProportions(.6f, .2f, .2f);
@@ -38,7 +39,7 @@ SimQlinkControls::SimQlinkControls()
 
         data[1] = 0;
         currValues[qlinkType] = (int)rotary->getValue();
-        impl->hwInputReceived.emit(mt::Kick::HwControlCommands::qlink1 + qlinkType, data);
+        impl->hwInputReceived(SIM_KNOB_ID_BASE + qlinkType, data);
     };
     qlink1.onValueChanged = [handleValueChange, this](double)
     {
@@ -73,11 +74,21 @@ void SimQlinkControls::resized()
 SimTransportControl::SimTransportControl()
 {
     impl = new SimulatorIntrefaceImpl;
-    rec.makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    overDub.makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    stop.makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    play.makeVisibleAddListnerAndAddRadioGroup(this, 1);
-    playStart.makeVisibleAddListnerAndAddRadioGroup(this, 1);
+    addAndMakeVisible(rec);
+    rec.addListener(this);
+    rec.setRadioGroupId(1);
+    addAndMakeVisible(overDub);
+    overDub.addListener(this);
+    overDub.setRadioGroupId(1);
+    addAndMakeVisible(stop);
+    stop.addListener(this);
+    stop.setRadioGroupId(1);
+    addAndMakeVisible(play);
+    play.addListener(this);
+    play.setRadioGroupId(1);
+    addAndMakeVisible(playStart);
+    playStart.addListener(this);
+    playStart.setRadioGroupId(1);
 }
 
 void SimTransportControl::resized()
@@ -89,18 +100,18 @@ void SimTransportControl::resized()
     playStart.setBounds(0, play.getBottom() + 8, SIM_TRANSPORT_CONTROL_WIDTH, SIM_TRANSPORT_CONTROL_HEIGHT);
 }
 
-void SimTransportControl::buttonClicked(Button* button)
+void SimTransportControl::buttonClicked(juce::Button* button)
 {
     std::vector<char> data;
     if (button == &rec)
-        impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Record, data);
+        impl->hwInputReceived(contracts::DeviceControlContracts::EN_RECORD, data);
     else if (button == &play)
-        impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Play, data);
+        impl->hwInputReceived(contracts::DeviceControlContracts::EN_PLAY, data);
     else if (button == &overDub)
-        impl->hwInputReceived.emit(mt::Kick::HwControlCommands::OverDub, data);
+        impl->hwInputReceived(contracts::DeviceControlContracts::EN_OVERDUB, data);
     else if (button == &stop)
-        impl->hwInputReceived.emit(mt::Kick::HwControlCommands::Stop, data);
+        impl->hwInputReceived(contracts::DeviceControlContracts::EN_STOP, data);
     else if (button == &playStart)
-        impl->hwInputReceived.emit(mt::Kick::HwControlCommands::PlayStart, data);
+        impl->hwInputReceived(contracts::DeviceControlContracts::EN_PLAYSTART, data);
 }
 }

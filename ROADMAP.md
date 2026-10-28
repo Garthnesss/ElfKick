@@ -19,17 +19,22 @@ can state its claim with a run behind it.
   - [ ] Give the examples a CI-style smoke script (build + timeout run +
         ALSA null) so regressions are one command.
 
-## Phase 2 — "The simulator lives" (current target)
-- Reconcile `apps/kickem` with the published module API: it references
-  `mt::Kick::PadAction`, `PadButtonState`, `HwControlCommands`,
-  `getPadColourFromId`, `TOTAL_DRUM_PADS`, `Displays`, `AppHome` — none exist
-  in the shipped modules. Decide per symbol: renamed (find the new home),
-  removed (delete the simulator feature), or never-shipped (reimplement).
-- Give `juce_serialport` a Linux backend (termios) or excise it from the
-  simulator path (the simulator has no real MCU to talk to anyway).
-- Replace the AudIO_constants / AudIO_juce stubs with real content as the
-  build demands symbols from them.
-- Gate: `KT_KickEM` links, launches under Xvfb, and renders the pad grid.
+## Phase 2 — "The simulator lives" (nearly done — Oct 28, 2026)
+- [x] Reconcile `apps/kickem` with the published module API: every missing
+      symbol resolved per symbol — renamed (`mt::Kick::*` → contracts /
+      `BtnLedSequence` / `PadSequence` / `BtnState`), API-migrated (sigslot
+      `operator()`, JUCE 7 Displays, `kick_ui::KickHome`), or reimplemented
+      (`getPadColourFromId` as a local colour map). Full log:
+      SIM_BUILD_LOG.md.
+- [x] `juce_serialport` on Linux: repo-kept fail-safe stub backend
+      (`juce_serialport_Linux.cpp`) — the simulator has no real MCU to
+      talk to; a termios backend stays an option if a real port is needed.
+- [x] AudIO_constants / AudIO_juce stubs replaced with real reconstructed
+      content (constants inferred from call sites; recorder/looper/device
+      classes adapted over the published `DRecorder`).
+- [ ] Gate: `KT_KickEM` links, launches under Xvfb, and renders the pad
+      grid. (All TUs compile and link blockers are fixed; final link +
+      launch test are the last steps.)
 
 ## Phase 3 — "The full app on a desktop"
 - Build the real processes (`kick_main`, `kick_gui`, `kick_audio_engine`,

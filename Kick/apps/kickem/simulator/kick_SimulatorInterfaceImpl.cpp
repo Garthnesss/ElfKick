@@ -5,7 +5,7 @@ namespace sim
 SimulatorIntrefaceImpl* SimulatorIntrefaceImpl::inst = nullptr;
 void SimulatorIntrefaceImpl::sendMessageToHW(int id, const std::vector<juce::int8>& data)
 {
-    hwMessageReceived.emit(id, data);
+    hwMessageReceived(id, data);
 }
 
 SimulatorIntrefaceImpl::SimulatorIntrefaceImpl()

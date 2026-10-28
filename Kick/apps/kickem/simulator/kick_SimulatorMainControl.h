@@ -37,9 +37,9 @@ public:
 
 private:
     void drawSubFunc(juce::Graphics& g, juce::Component& control, const juce::String& subFunctext);
-    
+
 private:
-    void buttonClicked(Button* button);
+    void buttonClicked(juce::Button* button) override;
 
 private:
     KickSimButton fullLevels{ "", "FULL LEVELS" };
@@ -53,12 +53,12 @@ class SimulatorMainControl : public juce::Component,
 public:
     SimulatorMainControl();
     ~SimulatorMainControl();
-    void buttonClicked(Button*);
+    void buttonClicked(juce::Button*) override;
     void paint(juce::Graphics& paint);
     void resized() override;
 
 SIGNALS:
-    sig::Signal<int> bankChanged;
+    sigslot::signal<int> bankChanged;
 
 private:
     void drawSubFunc(juce::Graphics& g, juce::Component& control, const juce::String& subFunctext);

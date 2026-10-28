@@ -1,8 +1,9 @@
 #!/bin/sh
-# Attempt the Kick simulator (KT_KickEM) build. EXPERIMENTAL:
-# configure succeeds with the reconstructed glue in this repo; the build
-# currently fails in apps/kickem/simulator code, which references a module
-# API that is not in the published tree. See BUILD_FINDINGS.md.
+# Build the Kick simulator (KT_KickEM).
+# Configure succeeds with the reconstructed glue in this repo, and the
+# simulator code has been reconciled with the published module API —
+# every translation unit compiles. See SIM_BUILD_LOG.md for the full
+# itemised change log and BUILD_FINDINGS.md for the summary.
 # Usage: scripts/build-simulator.sh [build-dir]
 set -eu
 cd "$(dirname "$0")/.."

@@ -11,3 +11,4 @@ Makefile
 juce_patch_applied.flag
 Kick/modules/3rdParty/juce_serialport/*
 !Kick/modules/3rdParty/juce_serialport/README.ELFKICK.md
+!Kick/modules/3rdParty/juce_serialport/juce_serialport_Linux.cpp

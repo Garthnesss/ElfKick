@@ -35,7 +35,10 @@ target_sources(${TargetName}
         simulator/kick_SimulatorMainControl.cpp
         simulator/kick_SimulatorControls.cpp
         Main.cpp
-        simulator/kick_SimulatorInterfaceImpl.cpp)
+        simulator/kick_SimulatorInterfaceImpl.cpp
+        # ElfKick: Linux stub for juce_serialport (fetched module has no
+        # Linux implementation; this file is repo-kept, fetch-deps preserves it)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../modules/3rdParty/juce_serialport/juce_serialport_Linux.cpp)
 
 target_compile_definitions(${TargetName} 
     PRIVATE
@@ -79,6 +82,12 @@ target_link_libraries(${TargetName}
     PRIVATE
         kick_ui
         program_edit_ui
+        # ElfKick: the other apps link these directly (apps/kick,
+        # apps/kick_gui); kickem was missing them — contracts provides
+        # DclContractsHelper/DclSignals, juce_dsp is used by AudIO_juce.
+        contracts
+        ipc
+        juce::juce_dsp
         juce::juce_gui_extra
         juce::juce_audio_devices
         juce::juce_audio_processors

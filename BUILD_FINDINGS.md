@@ -164,3 +164,30 @@ shipped modules — plus a sigslot signature mismatch in input_events.
 module API than the one published; it is not a few missing files away from
 building.** Stopped there (Oct 28) to move the work into the ElfKick repo,
 where fixing the simulator against the published modules is the open task.
+
+## Update — simulator reconciliation (Oct 28, 2026, ElfKick tree)
+
+The open task above is done, bar the final link + launch check. Full
+itemised log: `SIM_BUILD_LOG.md`. Headlines:
+
+- The earlier verdict needs one correction: the "different internal API"
+  turned out to be mostly the *current* published API under older names —
+  the contracts module (`contracts::DeviceControlContracts`,
+  `BtnLedSequence`, `PadSequence`, `BtnState`) covers nearly everything
+  kickem referenced. The migration was mechanical once mapped.
+- Two pieces genuinely never shipped and had to be reconstructed:
+  `AudIO_constants` (load-bearing — global MIDI/GAIN/PAN/POLYPHONY
+  constants + `UNKNOWN_VALUE` + audio geometry, inferred from call
+  sites) and `AudIO_juce` (`mt::SampleRecorder` / `mt::Looper` /
+  `mt::AudioDevice` / `mt::ADSR` / `mt::Filter`, adapted over the
+  published `DRecorder` / `AudioRecorder`). Both are marked
+  RECONSTRUCTED in-tree.
+- Enabling the recorder classes required flipping two AudIO feature
+  defaults (`AUDIO_DAW_EXTENSIONS`, `AUDIO_OBJECT_AUDIO_FILE_RECORDER`)
+  — the switches in `AudIO.h` are now `#ifndef`-guarded so either build
+  can override them.
+- `juce_serialport` has no Linux implementation upstream at all; the
+  simulator path now uses a repo-kept fail-safe stub backend.
+- Build trajectory: ~1,960 error lines → 361 → 26 → 1 → **all
+  translation units compile**; the last failures were link-only
+  (kickem never linked the `contracts` module; `juce_dsp` also needed).

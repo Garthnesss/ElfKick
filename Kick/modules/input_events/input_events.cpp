@@ -1,6 +1,9 @@
 
 #include <moodycamel/moodycamel.h>
 #include <juce_serialport/juce_serialport.h>
+// ElfKick: Factory<> (common) is used by the SIM_BUILD path below but this
+// module never included it.
+#include <common/common.h>
 
 #include "input_events.h"
 #include "contracts/dcl/dcl_contracts.h"
@@ -309,7 +312,38 @@ namespace Controls
         //creating multiple instance of SimulatorInterface using factoty is somehow clearing the connected signals need to find the reason
         simInterface = Factory<SimulatorInterface>::makeObject( 0 );
         simInterface->hwInputReceived.connect( []( int id, const std::vector<char>& data ) {
-            Controls::InputEvents::dispatchHardwareEvent( id, data );
+            // ElfKick: dispatchHardwareEvent is signal<HWMsg_t&> — wrap the
+            // simulator's (id, data) events (see kickem's SimIds: buttons use
+            // BtnLedSequence values, pads are SIM_PAD_ID_BASE + PadSequence,
+            // qlinks are SIM_KNOB_ID_BASE + index) into the packet shape the
+            // contracts helpers expect (data[0]=code, data[1]=state/value).
+            CPktMgr::HWMsg_t msg;
+            if( id >= 1100 )
+            {
+                msg.pktType = CPktMgr::EN_PKT_TYPE_KNOBS;
+                msg.pktCmd  = contracts::DeviceControlContracts::EN_KNOB_QLINK;
+                const int delta = data.empty() ? 0 : (int)data[0];
+                msg.data    = { id - 1100,
+                                delta >= 0 ? (int)contracts::DeviceControlContracts::EN_KNOB_CLOCKWISE
+                                           : (int)contracts::DeviceControlContracts::EN_KNOB_ANTICLOCKWISE,
+                                delta >= 0 ? delta : -delta };
+            }
+            else if( id >= 1000 )
+            {
+                msg.pktType = CPktMgr::EN_PKT_TYPE_PAD;
+                msg.pktCmd  = contracts::DeviceControlContracts::EN_PAD_STATE;
+                msg.data    = { id - 1000,
+                                data.size() > 0 ? (int)data[0] : 0,
+                                data.size() > 1 ? (int)data[1] : 127,
+                                0 };
+            }
+            else
+            {
+                msg.pktType = CPktMgr::EN_PKT_TYPE_BUTTON;
+                msg.pktCmd  = contracts::DeviceControlContracts::EN_BTN_STATUS;
+                msg.data    = { id, data.empty() ? 1 : (int)data[0] };
+            }
+            Controls::InputEvents::dispatchHardwareEvent( msg );
         } );
 #else
         if( !_FPPort )
@@ -356,7 +390,17 @@ namespace Controls
         }
 
 #ifdef SIM_BUILD
-        if( simInterface ) simInterface->sendMessageToHW( f_HwMsg );
+        if( simInterface )
+        {
+            // ElfKick: SimulatorInterface::sendMessageToHW takes
+            // (int code, const std::vector<juce::int8>&) — pass the packet
+            // command as the code and the payload bytes as data.
+            std::vector<juce::int8> simData;
+            simData.reserve( f_HwMsg.data.size() );
+            for( int v : f_HwMsg.data )
+                simData.push_back( (juce::int8)v );
+            simInterface->sendMessageToHW( f_HwMsg.pktCmd, simData );
+        }
 #endif
         if( _FPPort ) _FPPort->sendMessageToControlSurface( f_HwMsg );
         else

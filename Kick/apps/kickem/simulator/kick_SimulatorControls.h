@@ -29,7 +29,7 @@ class SimTransportControl : public juce::Component,
 public:
     SimTransportControl();
     void resized() override;
-    void buttonClicked(Button* button);
+    void buttonClicked(juce::Button* button) override;
 
 private:
     SimulatorIntrefaceImpl* impl = nullptr;

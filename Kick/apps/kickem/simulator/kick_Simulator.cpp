@@ -3,6 +3,8 @@
 namespace sim
 {
 #define padSpacing  20
+#define TOTAL_DRUM_PADS 16
+
 KickSimulatorButton::KickSimulatorButton(int p)
     :pos(p)
 {
@@ -20,7 +22,7 @@ void KickSimulatorButton::paint(juce::Graphics& g)
     juce::Colour clr;
     if (mousePressed)
         clr = padColour.withAlpha(0.75f);
-    else if (state == mt::Kick::PadButtonState::StateOff || state == mt::Kick::PadButtonState::StateOff)
+    else if (state == PadButtonState::StateOff)
         clr = juce::Colours::transparentBlack;
     else
         clr = padColour;
@@ -29,43 +31,44 @@ void KickSimulatorButton::paint(juce::Graphics& g)
     g.drawRect(getLocalBounds(), 3);
 }
 
-void KickSimulatorButton::mouseDown(const MouseEvent&)
+void KickSimulatorButton::mouseDown(const juce::MouseEvent&)
 {
-    if (state == mt::Kick::PadButtonState::StateOff)
+    if (state == PadButtonState::StateOff)
         return;
 
-    padStateChanged.emit(pos, true);
+    padStateChanged(pos, true);
     mousePressed = true;
     repaint();
 }
 
-void KickSimulatorButton::mouseUp(const MouseEvent&)
+void KickSimulatorButton::mouseUp(const juce::MouseEvent&)
 {
-    if (state == mt::Kick::PadButtonState::StateOff)
+    if (state == PadButtonState::StateOff)
         return;
 
-    padStateChanged.emit(pos, false);
+    padStateChanged(pos, false);
     mousePressed = false;
     repaint();
 }
 
 SimulatorButtonGrid::SimulatorButtonGrid()
 {
-    padColour.resize(128, mt::Kick::PadColourIds::PadColourTrans);
-    padState.resize(128, mt::Kick::PadButtonState::StateOff);
+    padColour.resize(128, PadColourIds::PadColourTrans);
+    padState.resize(128, PadButtonState::StateOff);
     auto triggerHwEvent = [this](int pos, bool pressed)
     {
         std::vector<char> data(2);
-        int pad = mt::Kick::HwControlCommands::Pad1 + pos;
+        int pad = SIM_PAD_ID_BASE + pos;
         data[1] = 127; //velocity
+        // ElfKick: PAD_PRESSED/PAD_RELEASED -> contracts BtnState values.
         if (pressed)
-            data[0] = PAD_PRESSED;
+            data[0] = (char)contracts::DeviceControlContracts::BTN_PRESSED;
         else
-            data[0] = PAD_RELEASED;
+            data[0] = (char)contracts::DeviceControlContracts::BTN_RELEASED;
 
-        impl->hwInputReceived.emit((mt::Kick::HwControlCommands)pad, data);
+        impl->hwInputReceived(pad, data);
     };
-    
+
     impl = new SimulatorIntrefaceImpl();
     for (int row = 0; row < 4; row++)
     {
@@ -76,20 +79,24 @@ SimulatorButtonGrid::SimulatorButtonGrid()
             padBtn->padStateChanged.connect(triggerHwEvent);
         }
     }
-    
+
     impl->hwMessageReceived.connect([this](int hwId, const std::vector<juce::int8>& data)
     {
-        if (!(hwId >= mt::Kick::HwControlCommands::Pad1 && hwId <= mt::Kick::HwControlCommands::Pad16))
+        if (!(hwId >= SIM_PAD_ID_BASE && hwId < SIM_PAD_ID_BASE + TOTAL_DRUM_PADS))
+            return;
+        if (data.size() < 2)
             return;
 
-        mt::Kick::PadAction pdAction = (mt::Kick::PadAction)data[0];
-        int pad = hwId - (int)mt::Kick::HwControlCommands::Pad1;
-        if (pdAction == mt::Kick::PadAction::SetPadColour)
+        PadAction pdAction = (PadAction)data[0];
+        int pad = hwId - SIM_PAD_ID_BASE;
+        if (pdAction == PadAction::SetPadColour)
         {
+            if (data.size() < 3)
+                return;
             int bank = (int)data[1];
 
-            mt::Kick::PadColourIds selPadClr = (mt::Kick::PadColourIds)data[2];
-            padColour[(rsize_t)bank * TOTAL_DRUM_PADS + pad] = (mt::Kick::PadColourIds)data[2];
+            PadColourIds selPadClr = (PadColourIds)data[2];
+            padColour[(size_t)bank * TOTAL_DRUM_PADS + pad] = selPadClr;
 
             if (currentBank == bank)
             {
@@ -97,32 +104,17 @@ SimulatorButtonGrid::SimulatorButtonGrid()
                 {
                     if (button->getPos() == pad)
                     {
-                        button->setPadColour(mt::Kick::getPadColourFromId(selPadClr));
+                        button->setPadColour(getPadColourFromId(selPadClr));
                         break;
                     }
                 }
             }
             repaint();
         }
-        else if (pdAction == mt::Kick::PadAction::SetPadState)
+        else if (pdAction == PadAction::SetPadState)
         {
-            padState[currentBank * TOTAL_DRUM_PADS + pad] = (mt::Kick::PadButtonState)data[1];
-
-            //int startPadAndBank = (int)data[1];
-            //int ensPadAndBank = (int)data[2];
-            //for (int i = startPadAndBank; i <= ensPadAndBank; i++)
-            //    padState[i] = state;
-
+            padState[currentBank * TOTAL_DRUM_PADS + pad] = (PadButtonState)data[1];
             setCurrentBank(currentBank);
-        }
-        else if (hwId == pdAction == mt::Kick::PadAction::SetPadState)
-        {
-            //int startPadAndBank = (int)data[0];
-            //int ensPadAndBank = (int)data[1];
-            //for (int i = startPadAndBank; i <= ensPadAndBank; i++)
-            //    padsOn[i] = false;
-            //
-            //setCurrentBank(currentBank);
         }
     });
 }
@@ -137,7 +129,7 @@ void SimulatorButtonGrid::resized()
     int buttonHeight = (int)(std::round(getHeight() - (5 * padSpacing)) / 4);
     int yPos = getHeight() - padSpacing - buttonHeight;
     int xPos = padSpacing;
-    
+
     int pos = 0;
     for (std::unique_ptr<KickSimulatorButton>& padBtn : buttons)
     {
@@ -159,7 +151,7 @@ void SimulatorButtonGrid::setCurrentBank(int cBank)
     int buttonStartValue = cBank * 16;
     for (auto& padButton : buttons)
     {
-        padButton->setPadColour(mt::Kick::getPadColourFromId(padColour[buttonStartValue]));
+        padButton->setPadColour(getPadColourFromId(padColour[buttonStartValue]));
         padButton->setState(padState[buttonStartValue]);
         buttonStartValue++;
     }
@@ -199,22 +191,25 @@ void SimulatorButtonGrid::paint(juce::Graphics& g)
 Simulator::Simulator()
 {
     sif = new SimulatorIntrefaceImpl;
-    const Displays::Display* primary = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
-    setBounds(primary->userArea);
+    // ElfKick: JUCE 7 Displays API — getPrimaryDisplay() returns by value.
+    const auto primary = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
+    if (primary != nullptr)
+        setBounds(primary->userArea);
 
     slider.setRange(1, 100, 1);
     addAndMakeVisible(master);
     master.setDisplayProportions(.6f, .2f, .2f);
-    master.showTitleAndValue(true, Slider::TextBoxBelow, Justification::centred);
+    master.showTitleAndValue(true, juce::Slider::TextBoxBelow, juce::Justification::centred);
 
     addAndMakeVisible(rec);
     rec.setDisplayProportions(.6f, .2f, .2f);
-    rec.showTitleAndValue(true, Slider::TextBoxBelow, Justification::centred);
+    rec.showTitleAndValue(true, juce::Slider::TextBoxBelow, juce::Justification::centred);
 
     addAndMakeVisible(slider);
     addAndMakeVisible(brand);
     addAndMakeVisible(logo);
-    addAndMakeVisible(AppHome::Instance());
+    // ElfKick: AppHome is now kick_ui::KickHome, a reference singleton.
+    addAndMakeVisible(kick_ui::KickHome::Instance());
     addAndMakeVisible(pad);
     addAndMakeVisible(mainControl);
     addAndMakeVisible(mainControl1);
@@ -222,16 +217,14 @@ Simulator::Simulator()
     addAndMakeVisible(qlinks);
     mainControl.bankChanged.connect([this](int bankEnum)
         {
-            int currentBank = bankEnum >= mt::Kick::HwControlCommands::BankA && bankEnum <= mt::Kick::HwControlCommands::BankD ?
-                bankEnum - mt::Kick::HwControlCommands::BankA : bankEnum  - mt::Kick::HwControlCommands::BankE;
-            pad.setCurrentBank(currentBank);
+            // BtnLedSequence banks are contiguous: EN_BANK_A..EN_BANK_H = 0..7.
+            pad.setCurrentBank(bankEnum - (int)contracts::DeviceControlContracts::EN_BANK_A);
         }
     );
 }
 
 Simulator::~Simulator()
 {
-    AppHome::deletInstance();
     delete sif;
 }
 
@@ -253,9 +246,9 @@ void Simulator::resized()
 {
     brand.setBounds(20, 20, 275, 37);
     logo.setBounds(20, brand.getBottom() + 10, 275, 50);
-    AppHome::Instance()->setTopLeftPosition(683, 20);
+    kick_ui::KickHome::Instance().setTopLeftPosition(683, 20);
     pad.setBounds(40, getSliderControlsRect().getBottom() + 10, 614, 490);
-    mainControl.setBounds(692, AppHome::Instance()->getBottom() + 2, 1018, 458);
+    mainControl.setBounds(692, kick_ui::KickHome::Instance().getBottom() + 2, 1018, 458);
     transport.setBounds(1767, 578, 84, 437);
     qlinks.setBounds(1753, 40, 110, 526);
 

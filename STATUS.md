@@ -1,8 +1,9 @@
 # ElfKick — Status
 
-**Last updated:** 2026-10-28
-**Phase:** 1 mostly done, 2 current (see ROADMAP.md). Repo created by Garth
-(Garthnesss/ElfKick, public); this import is the first real commit.
+**Last updated:** 2026-10-28 (simulator session)
+**Phase:** 1 mostly done, 2 nearly done (see ROADMAP.md). Repo created by Garth
+(Garthnesss/ElfKick, public); the import was the first real commit, the
+simulator reconciliation is the second.
 
 ## Where things stand
 - **Upstream mapped.** MusicTribeOpenSource/0700-AAM @ `2719418` cloned and
@@ -28,15 +29,41 @@
   - Running any example on a machine with no sound card needs
     `asound-null.conf` (the vendored minisdl ignores `SDL_AUDIODRIVER=dummy`
     and null-derefs in its ALSA thread when no card exists).
-- **Kick simulator (KT_KickEM) — CONFIGURES, DOES NOT BUILD (yet).**
-  Pristine configure dies cloning AudIO from a placeholder example.com URL.
-  With local-source overrides + reconstructed glue (`juce_modules.cmake`,
-  `AudIO_constants`/`AudIO_juce` stubs, PktMgr JUCE module wrapper,
-  fetched `juce_serialport`, kickem config.h fix) the **full configure
-  succeeds**. The build reaches ~50% (JUCE, PktMgr, common, most UI modules
-  compile), then fails in `apps/kickem/simulator/kick_Simulator.cpp`:
-  ~1,900 error lines rooted in references to a module API that isn't in the
-  published tree (`mt::Kick::PadAction`, `TOTAL_DRUM_PADS`, `Displays`, …).
+- **Kick simulator (KT_KickEM) — RECONCILED; ALL CODE COMPILES.**
+  Full itemised log: `SIM_BUILD_LOG.md`. Pristine configure dies cloning
+  AudIO from a placeholder example.com URL; with local-source overrides +
+  reconstructed glue the configure succeeds. The build that previously
+  failed with ~1,960 error lines now compiles **every translation unit**.
+  What it took:
+  - `AudIO_constants` turned out to be **load-bearing, not a stub**: the
+    tree uses global-namespace constants (MIDI/MIDI_CH/DB/GAIN/PAN/
+    POLYPHONY, `UNKNOWN_VALUE = -9999`, `AUDIO_*` geometry 48 kHz / 960 /
+    2-in / 2-out / 4 sends). Reconstructed from call sites; values are
+    inference and marked RECONSTRUCTED in the header.
+  - `AudIO_juce` (private module, never published) reconstructed:
+    `mt::Recorder` = `AudIO::AudioRecorder`; `mt::SampleRecorder` /
+    `mt::Looper` adapters over `AudIO::DRecorder`; `mt::AudioDevice` =
+    `IAudioDevice` backed by `juce::AudioDeviceManager`, silent with no
+    sound card; plus `mt::ADSR`, `mt::Filter`, `mt::FilterType`. Required
+    enabling `AUDIO_DAW_EXTENSIONS` + `AUDIO_OBJECT_AUDIO_FILE_RECORDER`
+    (AudIO.h switches are now `#ifndef`-guarded with those defaults on).
+  - kickem app code migrated to the published API: contracts types in
+    `contracts::DeviceControlContracts`, `BtnLedSequence` / `PadSequence` /
+    `BtnState` enums, palacaze sigslot (signals invoked via `operator()`,
+    no `.emit()`), JUCE 7 Displays pointer API, `kick_ui::KickHome`
+    singleton. `input_events` SIM_BUILD path repaired to wrap simulator
+    events into `CPktMgr::HWMsg_t` (pads = id base 1000, qlinks = 1100).
+  - Link blockers fixed: kickem now links the `contracts` module +
+    `juce::juce_dsp` directly (58 undefined symbols), and
+    `juce_serialport` — which has **no Linux implementation upstream** —
+    gets a repo-kept fail-safe stub (`juce_serialport_Linux.cpp`,
+    .gitignore exception; `fetch-deps.sh` preserves it).
+  - One upstream bug found en route: `AudIO/Objects/Recorder.h` only
+    included `AudioFile.h` when JUCE_VERSION was undefined, despite
+    holding a `unique_ptr<AudioFile<float>>` member.
+  - Remaining gate items: the final LTO link finishing cleanly, the
+    headless Xvfb launch test, and re-verifying the standalone AudIO
+    build still passes after the AudIO.h default changes.
 - **Hardware**: no KICK unit; price/availability unconfirmed. Nothing
   hardware-dependent is claimed anywhere in this repo.
 
@@ -53,9 +80,8 @@
   edited, so fixes re-derive as a clean patch. (2026-10-28)
 
 ## Open decisions (need Garth's call)
-1. **Simulator strategy** — reconcile kickem against the published modules
-   symbol-by-symbol (Phase 2 as written), or skip the simulator and go
-   straight for the real processes with a fake-MCU harness (Phase 3 first)?
+1. ~~**Simulator strategy**~~ — RESOLVED 2026-10-28: Garth asked to run
+   the simulator; reconciliation route taken (Phase 2 as written).
 2. **How closely to track upstream** — rebase fixes onto new upstream drops
    as they come, or freeze on `2719418` until Phase 3? (No upstream activity
    since Oct 26 release as of this writing; 14 commits total, mostly README.)
@@ -63,7 +89,8 @@
    Mac (Apple Silicon) next, or stay Linux-only until the simulator links?
 
 ## Next actions
+- [ ] Muse: KT_KickEM headless launch test (Xvfb) once the link lands.
+- [ ] Muse: re-verify standalone AudIO build after AudIO.h default changes.
 - [ ] Muse: BasicExample `setParameter` caller hunt (Phase 1 leftover).
 - [ ] Muse: Subdesign `getObject` registry bug (Phase 1 leftover).
 - [ ] Muse: smoke script for the examples (build + ALSA-null timeout runs).
-- [ ] Garth: simulator strategy call (Open decision 1) when he's ready.
