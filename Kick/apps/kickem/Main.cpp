@@ -7,6 +7,9 @@
 */
 
 #include <simulator/kick_Simulator.h>
+// ElfKick: reuse the combined app's device adapter (header-only) to arm
+// the hardware-input path in the simulator — see initialise() below.
+#include "../kick/kick_device_adapter.h"
 //==============================================================================
 class KickApplication  : public juce::JUCEApplication
 {
@@ -24,12 +27,34 @@ public:
         // This method is where you should put your application's initialisation code..
 
         mainWindow.reset (new MainWindow (getApplicationName()));
+
+        // ElfKick: arm the hardware-input path, mirroring apps/kick (which
+        // holds a KickDeviceAdapter for exactly this). The adapter's ctor
+        // calls Controls::InputEvents::initialize() — connecting the
+        // SIM_BUILD wrapper in input_events.cpp (SimulatorInterface::
+        // hwInputReceived -> dispatchHardwareEvent) — and bridges
+        // dispatchHardwareEvent -> contracts::DclSignals::
+        // hardwareInputTriggered, which the embedded KickHome listens to.
+        // Upstream kickem never did either, so panel input emitted into a
+        // signal with zero slots (see PAD_TEST_LOG.md).
+        //
+        // ORDER MATTERS: the adapter is created AFTER MainWindow.
+        // sim::SimulatorIntrefaceImpl is a singleton whose operator new
+        // returns the existing instance and whose constructor then re-runs
+        // on it, re-creating its hwInputReceived signal and dropping any
+        // connections already made (the "somehow clearing the connected
+        // signals" effect noted in input_events.cpp). The panel — and the
+        // last impl constructions — happens inside MainWindow, so after
+        // this point initialize()'s factory instance IS the panel's own
+        // and its connection survives.
+        deviceAdapter.reset (new KickDeviceAdapter());
     }
 
     void shutdown() override
     {
         // Add your application's shutdown code here..
 
+        deviceAdapter = nullptr;
         mainWindow = nullptr; // (deletes our window)
     }
 
@@ -91,6 +116,8 @@ public:
 
 private:
     std::unique_ptr<MainWindow> mainWindow;
+    // ElfKick: hardware-input bridge (see initialise()).
+    std::unique_ptr<KickDeviceAdapter> deviceAdapter;
 };
 
 //==============================================================================

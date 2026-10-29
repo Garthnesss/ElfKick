@@ -56,6 +56,15 @@ whose source was released 2026-10-26 under AGPL-3.0-or-later.
   git from `~/Projects/ElfKick` on his Mac.
 - Oct 28, 2026: every project gets the four canonical docs —
   PROJECT_TRUTH, ARCHITECTURE, ROADMAP, STATUS — starting with this one.
+- Oct 28, 2026: **the point of the fork is an emulator** — a desktop rig
+  that reproduces the device faithfully enough to *pre-make things for
+  it* before any hardware exists:
+  1. **New apps of Garth's own design** that run on this layout/runtime
+     (1024×600 touchscreen + the pad/knob/button panel, the IPC mesh,
+     the AudIO engine), developed and tested against the simulator.
+  2. **Content for the stock Kick software** — projects/programs made
+     on the desktop that the device software loads (the released tree
+     ships none: the factory demos are artwork-only shells).
 
 ## Scope boundaries
 - No hardware purchases, no flashing, no Buildroot image work until a KICK

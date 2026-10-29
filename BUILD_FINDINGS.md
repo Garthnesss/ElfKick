@@ -191,3 +191,28 @@ itemised log: `SIM_BUILD_LOG.md`. Headlines:
 - Build trajectory: ~1,960 error lines → 361 → 26 → 1 → **all
   translation units compile**; the last failures were link-only
   (kickem never linked the `contracts` module; `juce_dsp` also needed).
+
+## Cross-check vs sibling release 0716-AAF "IGNITE" (Oct 28, 2026)
+
+MusicTribeOpenSource's only other product repo, 0716-AAF (a 64-channel
+sequencer, pushed the same week), ships the **same AudIO tree**:
+`diff -rq` over the whole tree = 14 differing files, and every one
+differs only in the copyright header line — except
+`Objects/SoundFontSynthesis/AWE32_1MB.h`, where both repos carry a stub
+for the removed GM SoundFont with different wording. Consequences:
+
+- Our AudIO is not an older/newer revision than the sibling's; the
+  Phase 1–2 fixes and reconstructions are not superseded by anything
+  in 0716-AAF.
+- The two open example crashes (BasicExample `SFSynth::setParameter`,
+  Subdesign `getObject`) exist identically in the sibling copy — no
+  upstream fix to borrow; they're ours to fix.
+- 0716's stub header documents the intended SoundFont workflow:
+  regenerate `AWE32_1MB.h` from a `.sf2` you have rights to
+  (`xxd -i`), keeping the `soundfont`/`soundfontsize` names — a usable
+  route for the content pipeline. Its `AudIO/Samples/README.md`
+  confirms the demo drum samples were likewise stripped as
+  non-redistributable ("put your own `.wav` files here").
+- `ignite_constants.h` is that product's UI/sequencer constants, not
+  an AudIO engine-constants module — it cannot validate our
+  reconstructed `AudIO_constants` values.

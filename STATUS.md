@@ -124,6 +124,26 @@ build `411051f`, runtime results follow.
     project (factory demo content wasn't released — only tile
     artwork), so an audible voice also needs a content-bearing
     project; and the VM has no sound device regardless.
+  - **Input fix LANDED (Oct 28, 2026)** (record: `PAD_FIX_LOG.md`):
+    kickem's `Main.cpp` now holds a `KickDeviceAdapter` (the same
+    object apps/kick uses — its ctor calls `InputEvents::initialize()`
+    and bridges dispatch→DclSignals), created *after* MainWindow
+    because the simulator singleton's `operator new` re-creates the
+    `hwInputReceived` signal and drops earlier connections (that's
+    upstream's "somehow clearing the connected signals" mystery,
+    solved). One file changed; KT_KickEM rebuilt clean; headless
+    regression passes. **Proof: the BROWSE panel button now propagates
+    end-to-end** — the simulator's centre screen switches to the File
+    Browser and stays, the button stays lit from UI feedback over the
+    reverse path, and the log gains `KickHome::handleCommand` traces.
+    **Pads still don't emit — a second, upstream gate:**
+    `KickSimulatorButton::mouseDown/mouseUp` return early while the
+    pad is `StateOff`, and pads only leave StateOff when the app
+    pushes SetPadState (on hardware the MCU sends pad packets
+    unconditionally, so the gate is simulator-only). Whether to change
+    that gate is an open decision for Garth (see below). Bonus from
+    the retest: content creation works in the GUI — a track and a DRUM
+    Program 01 were created by clicking.
   - `KickDeviceControl` stays alive under timeout (serial = fail-safe
     stub). `KickMain` exits 0 immediately with no arguments — it
     expects its supervisor runtime config; clean exit, not a crash.
@@ -154,9 +174,14 @@ build `411051f`, runtime results follow.
    Mac (Apple Silicon) next, or stay Linux-only until the simulator links?
 
 ## Next actions
-- [ ] Muse: apply the kickem InputEvents fix (in progress), rebuild,
-      re-run the pad test — success = the press observably propagates
-      to GUI/engine (sound itself needs a content-bearing project).
+- [ ] Garth: decide the simulator pad gate — keep upstream semantics
+      (pads inert until the app arms them) or make the deliberate
+      ElfKick emulator change (pads emit on click regardless of
+      state; the real device has no such gate because its MCU always
+      sends). Muse's recommendation: change it — an emulator whose
+      pads can't be pressed blocks app/content development.
+- [ ] Muse: with the gate decided, re-run the pad test against the
+      GUI-created DRUM program to close the Phase 3 gate.
 - [ ] Muse: create or source a content-bearing project (a drum
       program with synth voices) so a trigger has something to play.
 - [ ] Muse: document the staged-system launch recipe as a script

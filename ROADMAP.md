@@ -53,6 +53,36 @@ can state its claim with a run behind it.
   a pad press in the simulator makes sound through AudIO — **the one
   item still unverified**.
 
+## Phase 5 — "The emulator: app platform + content pipeline" (Garth's goal, Oct 28, 2026)
+The fork's purpose: pre-make things for the device on a desktop rig that
+reproduces its layout and runtime. Two deliverable lines:
+
+**App platform (first)**
+- [ ] One-command emulator launcher (`scripts/run-emulator.sh`): stages
+      the binaries, installs the asset tree, starts the supervisor set
+      + simulator at the true layout (GUI at 1024×600).
+- [ ] APP_PLATFORM.md: the app surface, documented from the code —
+      screen contract (1024×600, theme/assets), input contract
+      (contracts/DclSignals hardware events), output contract (pad LED /
+      display commands), how a process joins the KickMain-supervised
+      set (co-location + JSON config), and how to reach AudIO.
+- [ ] A starter template app: minimal process that shows its own
+      screen, lights pads, and reacts to pad/knob input — the "hello
+      world" every later ElfKick app forks from.
+- Gate: the starter app runs inside the rig, a simulator pad press
+  visibly changes its screen, and it can drive a pad LED back.
+
+**Content pipeline**
+- [ ] Reverse the project/program file format from the loader code
+      (projectManager / ValueTree serialisation) well enough to
+      *author* files the stock software opens.
+- [ ] A first hand-made content pack: one project with a drum program
+      built on AudIO synth voices (not samples — the factory samples
+      were never released).
+- Gate: the stock GUI loads our project, and (with the Phase 3 input
+  fix in) a simulator pad press triggers a voice — meter/log evidence
+  on this sound-card-less VM, ears when hardware exists.
+
 ## Phase 4 — "On the metal" (blocked on hardware)
 - Cross-build the Buildroot image + app for the i.MX8M Mini (SDK from the
   upstream Linux tree), boot on a real KICK if/when a unit exists.
