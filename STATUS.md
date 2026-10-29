@@ -1,10 +1,10 @@
 # ElfKick — Status
 
-**Last updated:** 2026-10-28 (Phase 3 build verified)
-**Phase:** 1 mostly done, 2 DONE, 3 build done / runtime integration
-current (see ROADMAP.md). Repo created by Garth (Garthnesss/ElfKick,
+**Last updated:** 2026-10-28 (Phase 3 runtime verified)
+**Phase:** 1 mostly done, 2 DONE, 3 essentially done — system runs
+together (see ROADMAP.md). Repo created by Garth (Garthnesss/ElfKick,
 public); import `eb954ef`, simulator `5fd706a` + `6fc84d9`, Phase 3
-build follows.
+build `411051f`, runtime results follow.
 
 ## Where things stand
 - **Upstream mapped.** MusicTribeOpenSource/0700-AAM @ `2719418` cloned and
@@ -85,16 +85,31 @@ build follows.
   (`AudIO_constants` into device_control; `juce::juce_dsp` into kick +
   kick_gui) plus JACK headers on the VM (all real apps set `JUCE_JACK=1`;
   the Buildroot image ships JACK2, so that's a VM gap, not a bug).
-  - `KickUserInterface` **launches and stays alive** headless (101
-    threads, IPC + timers active, fullscreen window mapped) — but the
-    window **paints uniformly black**, even with the audio engine,
-    audio model, and device control running alongside as peers (all
-    stay alive). The home screen's content is evidently driven by
-    state that doesn't exist off-hardware (factory content under
-    `/app/…`, a loaded project, supervisor orchestration). Root-causing
-    the black home screen is the current open thread — a
-    runtime-integration question, not a build blocker. Capture:
-    `kick-gui-screenshot.png` (a black frame, kept as evidence).
+  - `KickUserInterface` **launches, stays alive, and DRAWS** (root
+    cause found Oct 28, 2026; full log: `RUNTIME_LOG.md`). The black
+    window was **not a code bug**: the UI draws exclusively from the
+    factory asset tree — `ui::Theme::loadTheme("Default")` parses
+    `/app/assets/Default/theme.xml` for every colour and every image
+    is file-loaded from the same tree. With `/app` absent, every
+    colour falls through to `transparentBlack` and all images are
+    null, so a fully initialised UI paints transparent-on-black. The
+    repo ships the identical tree at `Kick/assets/`; placing it at the
+    hardcoded path (plus `/app/demos` + `/app/templates` content)
+    renders the real home screen: Projects page, Demo 01 + Template 01
+    tiles, new-project tile (`kick-gui-screenshot.png`, 37,531
+    colours — it overwrote the black frame). No source change needed.
+  - **The whole system runs together (Phase 3 gate, Oct 28, 2026).**
+    `KickMain` supervises by spawning `BASE_PATH + exe` (its own
+    directory) with a JSON connection config as argv — staging all
+    five binaries into one dir and running `./KickMain` brought up
+    GUI + model + engine + device control with the full IPC mesh
+    connected (on hardware: systemd `ktkick.service` → `kt_kick.sh`).
+    With `KT_KickEM` running alongside as the hardware peer, all six
+    processes stayed alive simultaneously, and the simulator's centre
+    cut-out renders the themed Projects screen
+    (`kick-simulator-screenshot.png`). Still unverified: an actual
+    pad press producing sound — the input path is wired (Phase 2) but
+    nobody has clicked through it end-to-end yet.
   - `KickDeviceControl` stays alive under timeout (serial = fail-safe
     stub). `KickMain` exits 0 immediately with no arguments — it
     expects its supervisor runtime config; clean exit, not a crash.
@@ -125,11 +140,11 @@ build follows.
    Mac (Apple Silicon) next, or stay Linux-only until the simulator links?
 
 ## Next actions
-- [ ] Muse: root-cause the black home screen (first suspects: missing
-      factory content dirs, KickMain's expected launch config /
-      orchestration, project state the GUI waits on).
 - [ ] Muse: exercise the simulator input path end-to-end (pad/knob
-      events → PktMgr packets) once a peer process exists to receive them.
+      events → PktMgr packets → engine) and verify a pad press makes
+      sound through AudIO — the last unverified Phase 3 gate item.
+- [ ] Muse: document the staged-system launch recipe as a script
+      (RUNTIME_LOG.md has the copy-paste version).
 - [ ] Muse: BasicExample `setParameter` caller hunt (Phase 1 leftover).
 - [ ] Muse: Subdesign `getObject` registry bug (Phase 1 leftover).
 - [ ] Muse: smoke script for the examples (build + ALSA-null timeout runs).
