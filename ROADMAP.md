@@ -38,12 +38,16 @@ can state its claim with a run behind it.
       RecentProject empty-vector deref with no factory content —
       fixed with a bounds guard.)
 
-## Phase 3 — "The full app on a desktop" (current target)
-- Build the real processes (`kick_main`, `kick_gui`, `kick_audio_engine`,
-  `kick_device_control`) for x86-64 Linux; run them together against the
-  simulator as the hardware peer.
-- Gate: GUI boots, audio engine answers IPC, a pad press in the simulator
-  makes sound through AudIO.
+## Phase 3 — "The full app on a desktop" (build ✅, runtime current)
+- [x] Build the real processes for x86-64 Linux: all six targets link
+      (`Kick`, `KickUserInterface`, `KickAudioEngine`, `KickAudioModel`,
+      `KickMain`, `KickDeviceControl`) — three CMake link fixes total;
+      see PHASE3_BUILD_LOG.md.
+- [ ] Run them together against the simulator as the hardware peer.
+      (Processes launch and stay alive together; the GUI's home screen
+      paints black off-hardware — root-cause in progress.)
+- Gate: GUI boots **and draws**, audio engine answers IPC, a pad press
+  in the simulator makes sound through AudIO.
 
 ## Phase 4 — "On the metal" (blocked on hardware)
 - Cross-build the Buildroot image + app for the i.MX8M Mini (SDK from the

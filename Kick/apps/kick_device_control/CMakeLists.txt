@@ -135,6 +135,10 @@ target_link_libraries(${TargetName}
 		input_events
 		ipc
 		contracts
+		# ElfKick: input_events -> common includes <AudIO_constants/...>;
+		# the other apps get that include path via the AudIO modules they
+		# link, this app links none — link the header-only module directly.
+		AudIO_constants
 )
 
 if(TIMESTAMP)

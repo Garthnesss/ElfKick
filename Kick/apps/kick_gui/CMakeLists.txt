@@ -136,6 +136,9 @@ target_link_libraries(${TargetName}
         juce::juce_gui_extra
         ipc
 		contracts
+        # ElfKick: same juce::dsp need as apps/kick (mt::Filter via
+        # AudIO_juce, pulled in by the shared UI/program modules).
+        juce::juce_dsp
 )
 
 if(TIMESTAMP)

@@ -138,6 +138,10 @@ target_link_libraries(${TargetName}
         juce::juce_audio_devices
         juce::juce_audio_processors
         juce::juce_audio_utils
+        # ElfKick: the reconstructed mt::Filter (AudIO_juce) is built on
+        # juce::dsp (StateVariableTPTFilter, used by mt::DrumVoice);
+        # kickem needed this same direct link in Phase 2.
+        juce::juce_dsp
 		contracts
 		ipc
 )

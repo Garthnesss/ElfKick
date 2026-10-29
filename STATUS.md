@@ -1,9 +1,10 @@
 # ElfKick — Status
 
-**Last updated:** 2026-10-28 (simulator verified)
-**Phase:** 1 mostly done, 2 DONE, 3 current (see ROADMAP.md). Repo created
-by Garth (Garthnesss/ElfKick, public); import `eb954ef`, simulator
-reconciliation `5fd706a`, simulator verification follows.
+**Last updated:** 2026-10-28 (Phase 3 build verified)
+**Phase:** 1 mostly done, 2 DONE, 3 build done / runtime integration
+current (see ROADMAP.md). Repo created by Garth (Garthnesss/ElfKick,
+public); import `eb954ef`, simulator `5fd706a` + `6fc84d9`, Phase 3
+build follows.
 
 ## Where things stand
 - **Upstream mapped.** MusicTribeOpenSource/0700-AAM @ `2719418` cloned and
@@ -75,6 +76,30 @@ reconciliation `5fd706a`, simulator verification follows.
   - One upstream bug found en route: `AudIO/Objects/Recorder.h` only
     included `AudioFile.h` when JUCE_VERSION was undefined, despite
     holding a `unique_ptr<AudioFile<float>>` member.
+- **Real app processes — ALL SIX BUILD + LINK (verified Oct 28, 2026).**
+  Full log: `PHASE3_BUILD_LOG.md`. `Kick` (22 MB), `KickUserInterface`
+  (23 MB), `KickAudioEngine` (8.1 MB), `KickAudioModel` (8.1 MB),
+  `KickMain` (697 KB), `KickDeviceControl` (746 KB) — zero errors in the
+  final round. Three of them linked in round 1 with **no changes at
+  all**; the whole phase needed only three small CMake link fixes
+  (`AudIO_constants` into device_control; `juce::juce_dsp` into kick +
+  kick_gui) plus JACK headers on the VM (all real apps set `JUCE_JACK=1`;
+  the Buildroot image ships JACK2, so that's a VM gap, not a bug).
+  - `KickUserInterface` **launches and stays alive** headless (101
+    threads, IPC + timers active, fullscreen window mapped) — but the
+    window **paints uniformly black**, even with the audio engine,
+    audio model, and device control running alongside as peers (all
+    stay alive). The home screen's content is evidently driven by
+    state that doesn't exist off-hardware (factory content under
+    `/app/…`, a loaded project, supervisor orchestration). Root-causing
+    the black home screen is the current open thread — a
+    runtime-integration question, not a build blocker. Capture:
+    `kick-gui-screenshot.png` (a black frame, kept as evidence).
+  - `KickDeviceControl` stays alive under timeout (serial = fail-safe
+    stub). `KickMain` exits 0 immediately with no arguments — it
+    expects its supervisor runtime config; clean exit, not a crash.
+  - No regressions: KT_KickEM rebuild + standalone AudIO rebuild both
+    pass after all Phase 3 changes.
 - **Hardware**: no KICK unit; price/availability unconfirmed. Nothing
   hardware-dependent is claimed anywhere in this repo.
 
@@ -100,9 +125,9 @@ reconciliation `5fd706a`, simulator verification follows.
    Mac (Apple Silicon) next, or stay Linux-only until the simulator links?
 
 ## Next actions
-- [ ] Muse: Phase 3 — build the real processes (kick_main, kick_gui,
-      kick_audio_engine, kick_device_control) and run them against the
-      simulator as the hardware peer.
+- [ ] Muse: root-cause the black home screen (first suspects: missing
+      factory content dirs, KickMain's expected launch config /
+      orchestration, project state the GUI waits on).
 - [ ] Muse: exercise the simulator input path end-to-end (pad/knob
       events → PktMgr packets) once a peer process exists to receive them.
 - [ ] Muse: BasicExample `setParameter` caller hunt (Phase 1 leftover).
