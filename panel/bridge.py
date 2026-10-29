@@ -11,8 +11,17 @@ It also serves the panel directory over HTTP.
 Design + mapping: panel/BRIDGE.md.
 
 Usage:
-    python3 bridge.py [--ws-port 8794] [--http-port 8793] [--no-http]
-                      [--link /dev/ttymxc0]
+    python3 bridge.py [--host 127.0.0.1] [--ws-port 8794]
+                      [--http-port 8793] [--no-http] [--link /dev/ttymxc0]
+                      [--stream-fps 5] [--stream-quality 60]
+                      [--display :99]
+
+Screen streaming: a WS client may send {"t":"stream","on":true} to
+subscribe to live frames of the Kick GUI window (X display --display).
+The bridge answers {"t":"stream","on":true,"w":1024,"h":600,"fps":N}
+and then sends the frames as BINARY WebSocket messages (raw JPEG,
+1024x600). Capture runs only while at least one client is subscribed.
+Design: panel/BRIDGE.md.
 """
 
 import argparse
@@ -23,6 +32,7 @@ import os
 import pty
 import socket
 import struct
+import subprocess
 import sys
 import termios
 import threading
@@ -182,10 +192,10 @@ class WSClient:
         self.addr = addr
         self.send_lock = threading.Lock()
         self.alive = True
+        self.wants_stream = False     # screen-stream subscription (per client)
 
-    def send_text(self, text: str):
-        payload = text.encode()
-        header = bytearray([0x81])
+    def _send_frame(self, opcode: int, payload: bytes):
+        header = bytearray([0x80 | opcode])
         n = len(payload)
         if n < 126:
             header.append(n)
@@ -199,6 +209,12 @@ class WSClient:
             except OSError:
                 self.alive = False
 
+    def send_text(self, text: str):
+        self._send_frame(0x1, text.encode())
+
+    def send_binary(self, data: bytes):
+        self._send_frame(0x2, data)
+
     def read_exact(self, n: int) -> bytes:
         buf = b""
         while len(buf) < n:
@@ -208,8 +224,9 @@ class WSClient:
             buf += chunk
         return buf
 
-    def frames(self):
-        """Yield text payloads until the connection dies."""
+    def frames_raw(self):
+        """Yield (opcode, payload bytes) until the connection dies.
+        Ping is answered in-band; close ends the generator."""
         while True:
             h = self.read_exact(2)
             fin_op, b2 = h[0], h[1]
@@ -234,7 +251,129 @@ class WSClient:
                         return
                 continue
             if opcode in (0x1, 0x2):
+                yield opcode, bytes(payload)
+
+    def frames(self):
+        """Yield text payloads until the connection dies."""
+        for opcode, payload in self.frames_raw():
+            if opcode == 0x1:
                 yield payload.decode("utf-8", "replace")
+
+
+# ---------------------------------------------------------------------------
+# Screen streaming — the Kick GUI window, as JPEG frames over the same WS
+# ---------------------------------------------------------------------------
+
+STREAM_W, STREAM_H = 1024, 600        # the device touchscreen region
+
+
+class ScreenStreamer:
+    """Captures the KickUserInterface window from the X display and
+    pushes JPEG frames to subscribed WS clients.
+
+    Capture is a per-frame ImageMagick `import` subprocess (the tool
+    every runtime verification in this repo already used): read the
+    fullscreen window, crop the 1024x600 device region at its top-left,
+    encode JPEG to stdout. Measured-first numbers on this VM: ~0.21 s
+    wall per capture sustained, so the default 5 fps target runs the
+    capturer nearly back-to-back; frames land at whatever rate the box
+    sustains and the streamer logs the achieved rate.
+
+    The thread idles unless at least one client holds a stream
+    subscription — no subscriber, no capture, no CPU.
+    """
+
+    def __init__(self, bridge, display=":99", fps=5, quality=60):
+        self.bridge = bridge
+        self.display = display
+        self.period = 1.0 / max(1, fps)
+        self.target_fps = fps
+        self.quality = quality
+        self.window_id = None
+        self._stats_t0 = None
+        self._stats_frames = 0
+        self._stats_bytes = 0
+
+    # -- window discovery ----------------------------------------------------
+    def _env(self):
+        env = dict(os.environ)
+        env["DISPLAY"] = self.display
+        return env
+
+    def _resolve_window(self):
+        try:
+            out = subprocess.run(
+                ["xdotool", "search", "--onlyvisible", "--name",
+                 "^KickUserInterface$"],
+                capture_output=True, text=True, timeout=5, env=self._env())
+            ids = [int(x) for x in out.stdout.split()]
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            ids = []
+        self.window_id = ids[0] if ids else None
+        if self.window_id:
+            log(f"stream: GUI window resolved: id {self.window_id} on {self.display}")
+        else:
+            log("stream: KickUserInterface window not found (yet)")
+        return self.window_id
+
+    # -- capture ---------------------------------------------------------------
+    def _capture(self):
+        if self.window_id is None and self._resolve_window() is None:
+            return None
+        try:
+            out = subprocess.run(
+                ["import", "-window", str(self.window_id),
+                 "-crop", f"{STREAM_W}x{STREAM_H}+0+0", "+repage",
+                 "-quality", str(self.quality), "jpg:-"],
+                capture_output=True, timeout=5, env=self._env())
+        except (OSError, subprocess.TimeoutExpired):
+            self.window_id = None
+            return None
+        data = out.stdout
+        if out.returncode != 0 or not data.startswith(b"\xff\xd8"):
+            # window may have been restarted under a new id — re-resolve
+            log("stream: capture failed, will re-resolve window")
+            self.window_id = None
+            return None
+        return data
+
+    # -- main loop ---------------------------------------------------------------
+    def run(self):
+        while True:
+            if not self.bridge.stream_subscribers():
+                if self._stats_t0 is not None:
+                    self._flush_stats("stopped")
+                time.sleep(0.25)
+                continue
+            if self._stats_t0 is None:
+                self._stats_t0 = time.time()
+                self._stats_frames = 0
+                self._stats_bytes = 0
+                log(f"stream: capture started (target {self.target_fps} fps, "
+                    f"JPEG q{self.quality}, {STREAM_W}x{STREAM_H})")
+            t0 = time.time()
+            data = self._capture()
+            if data:
+                self.bridge.send_frame(data)
+                self._stats_frames += 1
+                self._stats_bytes += len(data)
+                if time.time() - self._stats_t0 >= 15:
+                    self._flush_stats("running")
+            dt = time.time() - t0
+            if dt < self.period:
+                time.sleep(self.period - dt)
+
+    def _flush_stats(self, why):
+        if self._stats_t0 is None:
+            return
+        dt = time.time() - self._stats_t0
+        if dt > 0 and self._stats_frames:
+            log(f"stream: {why}: {self._stats_frames} frames in {dt:.1f}s "
+                f"= {self._stats_frames / dt:.2f} fps, "
+                f"avg {self._stats_bytes // max(1, self._stats_frames)} B/frame")
+        self._stats_t0 = None
+        self._stats_frames = 0
+        self._stats_bytes = 0
 
 
 # ---------------------------------------------------------------------------
@@ -242,7 +381,8 @@ class WSClient:
 # ---------------------------------------------------------------------------
 
 class Bridge:
-    def __init__(self, link_path: str):
+    def __init__(self, link_path: str, stream_fps=5, stream_quality=60,
+                 stream_display=":99"):
         self.link_path = link_path
         self.master_fd = None
         self.parser = FrameParser()
@@ -253,6 +393,8 @@ class Bridge:
         self.emitted_code = {}          # panel button id -> code actually sent (for release pairing)
         self.knob_last = dict(KNOB_DEFAULTS)
         self.announced = False
+        self.streamer = ScreenStreamer(self, display=stream_display,
+                                       fps=stream_fps, quality=stream_quality)
 
     # -- pty ---------------------------------------------------------------
     def open_pty(self):
@@ -312,6 +454,17 @@ class Bridge:
         for cl in targets:
             cl.send_text(text)
 
+    # -- screen streaming ------------------------------------------------------
+    def stream_subscribers(self):
+        with self.clients_lock:
+            return sum(1 for cl in self.clients if cl.wants_stream and cl.alive)
+
+    def send_frame(self, jpeg: bytes):
+        with self.clients_lock:
+            targets = [cl for cl in self.clients if cl.wants_stream and cl.alive]
+        for cl in targets:
+            cl.send_binary(jpeg)
+
     def on_hw_frame(self, t, d, c, data):
         log(f"pty rx: {frame_str(t, d, c, data)}")
         if t == PKT_SYSTEM and c == 2 and not self.announced:
@@ -365,6 +518,17 @@ class Bridge:
             log(f"ws rx (bad json): {text[:80]}")
             return
         kind = msg.get("t")
+        if kind == "stream":
+            on = bool(msg.get("on"))
+            client.wants_stream = on
+            log(f"ws stream {'on' if on else 'off'} from {client.addr} "
+                f"(subscribers: {self.stream_subscribers()})")
+            reply = {"t": "stream", "on": on}
+            if on:
+                reply.update({"w": STREAM_W, "h": STREAM_H,
+                              "fps": self.streamer.target_fps})
+            client.send_text(json.dumps(reply))
+            return
         if kind == "hello":
             knobs = msg.get("knobs") or {}
             for k, v in knobs.items():
@@ -442,12 +606,12 @@ class Bridge:
             self.send_hw(PKT_BUTTON, 0, [code, 0], f"button {bid} up (code {code})")
 
     # -- servers ---------------------------------------------------------------
-    def ws_server(self, port: int):
+    def ws_server(self, host: str, port: int):
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind(("127.0.0.1", port))
+        srv.bind((host, port))
         srv.listen(8)
-        log(f"websocket listening on ws://127.0.0.1:{port}")
+        log(f"websocket listening on ws://{host}:{port}")
         while True:
             conn, addr = srv.accept()
             threading.Thread(target=self.handle_ws_client, args=(conn, addr),
@@ -499,25 +663,37 @@ class Bridge:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="bind address for both servers (default 127.0.0.1; "
+                         "0.0.0.0 exposes the panel on all interfaces)")
     ap.add_argument("--ws-port", type=int, default=8794)
     ap.add_argument("--http-port", type=int, default=8793)
     ap.add_argument("--no-http", action="store_true")
     ap.add_argument("--link", default="/dev/ttymxc0")
+    ap.add_argument("--stream-fps", type=int, default=5,
+                    help="screen-stream target frame rate (default 5)")
+    ap.add_argument("--stream-quality", type=int, default=60,
+                    help="screen-stream JPEG quality (default 60)")
+    ap.add_argument("--display", default=":99",
+                    help="X display holding the Kick GUI window (default :99)")
     args = ap.parse_args()
 
-    bridge = Bridge(args.link)
+    bridge = Bridge(args.link, stream_fps=args.stream_fps,
+                    stream_quality=args.stream_quality,
+                    stream_display=args.display)
     bridge.open_pty()
     threading.Thread(target=bridge.pty_reader, daemon=True).start()
+    threading.Thread(target=bridge.streamer.run, daemon=True).start()
 
     if not args.no_http:
         panel_dir = os.path.dirname(os.path.abspath(__file__))
         handler = lambda *a, **kw: SimpleHTTPRequestHandler(*a, directory=panel_dir, **kw)
-        httpd = ThreadingHTTPServer(("127.0.0.1", args.http_port), handler)
+        httpd = ThreadingHTTPServer((args.host, args.http_port), handler)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        log(f"panel served at http://127.0.0.1:{args.http_port}/index.html")
+        log(f"panel served at http://{args.host}:{args.http_port}/index.html")
 
     try:
-        bridge.ws_server(args.ws_port)
+        bridge.ws_server(args.host, args.ws_port)
     except KeyboardInterrupt:
         log("bye")
 

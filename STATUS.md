@@ -29,6 +29,16 @@ proven by inspection, every server-side hop by execution, and
 BRIDGE.md documents the exact browser-level re-check. Serve it with
 `scripts/serve-panel.sh` (panel :8793, bridge :8794). Screen
 streaming into MPC.screen is designed in BRIDGE.md, not built.
+**Update (Oct 29, 2026): screen streaming BUILT + verified** — the
+bridge captures the GUI window (1024×600) as JPEG frames (~18 KB,
+sustained ~4.4 fps of a 5 fps target; capture only while a client is
+subscribed, ~0.33 cores) and sends them as binary WS frames;
+bridge.js takes over MPC.screen and paints them letterboxed.
+Streamed frames verified byte-faithful against direct captures
+across screen switches, and the input path is unaffected mid-stream
+(pad burst → render meters; BROWSE LED round trip). Remaining gap is
+only the in-browser rendering, which Garth's next page load checks
+(bridge logs separate page-side from bridge-side failure).
 
 ## Where things stand
 - **Upstream mapped.** MusicTribeOpenSource/0700-AAM @ `2719418` cloned and

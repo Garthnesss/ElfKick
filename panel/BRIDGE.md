@@ -214,8 +214,11 @@ Runtime → web panel (feedback):
   LED output** has no MPC API. Both directions logged.
 - **Pad colours** are approximations: the runtime speaks in
   PadColourIds palette indices; the panel speaks CSS colours.
-- **The screen**: `MPC.takeScreen()` streaming of the GUI frame is
-  the designed follow-on (see end), **not built this pass**.
+- **The screen**: streamed since the second pass (see "Screen
+  streaming — as built" below). Remaining screen gap: the page-side
+  rendering is still to be eyeballed in a real browser (Garth's
+  tunnel session is the check), and the stream is display-out only —
+  no touch-back from the panel's screen area into the GUI.
 
 ## What was built (Oct 29, 2026)
 
@@ -312,16 +315,130 @@ Evidence, in order:
 
 The rig and bridge were left running in the passing configuration.
 
-## Follow-ons (designed, not built)
+## Screen streaming — as built (Oct 29, 2026, second pass)
 
-- **Screen streaming into `MPC.screen`:** the GUI renders KickHome at
-  1024×600 on its X display; a follow-on can grab that framebuffer
-  (X11 capture in the bridge host, or a tiny streamer in the GUI
-  process), scale to the canvas's 1184×680, and push frames over the
-  same WebSocket (binary frames), with `MPC.takeScreen()` called once
-  by bridge.js so the panel's built-in display yields. Bandwidth at
-  10–15 fps MJPEG-style is trivial on localhost. Not built this pass,
-  per scope.
+The designed follow-on above is built. The real Kick GUI now appears
+live in the web panel's display.
+
+**Design (as built):**
+
+- **Source**: the `KickUserInterface` window on Xvfb `:99` — a
+  fullscreen 1920×1200 window whose content is the device's 1024×600
+  user interface at its top-left (the same window and region every
+  verification frame in this repo was captured from). The streamer
+  resolves the window id by name (`xdotool search --name
+  '^KickUserInterface$'`) and re-resolves if a capture fails (the GUI
+  may restart under a new id).
+- **Capture**: one ImageMagick subprocess per frame —
+  `import -window <id> -crop 1024x600+0+0 +repage -quality 60 jpg:-`
+  — the capture tool this project has used all along. Measured first,
+  then chosen: sustained ≈0.21 s wall per capture standalone, so the
+  BRIDGE.md design estimate of 10–15 fps was **not** sustainable on
+  this 2-core VM with per-frame subprocesses; the target is **5 fps**
+  (`--stream-fps`, `--stream-quality`, `--display` are bridge args),
+  frames are sent at native 1024×600 and the page scales. (An
+  ffmpeg/x11grab pipeline would read only the sub-region in one
+  persistent process, but neither ffmpeg nor python-xlib exists on
+  this VM; per-frame `import` keeps the dependency footprint at zero.)
+- **Gating**: capture runs **only while at least one WS client holds
+  a stream subscription**. The streamer thread polls the subscriber
+  count, captures nothing otherwise, and logs start/stop plus a
+  stats line (frames, achieved fps, avg bytes) every 15 s and on
+  stop. A client whose sends start failing is marked dead and stops
+  counting as a subscriber within one frame period.
+- **Protocol** (additive — every existing message is unchanged):
+  - client → bridge: `{"t":"stream","on":true|false}` subscribes /
+    unsubscribes (per-client; frames go only to subscribers).
+  - bridge → that client: `{"t":"stream","on":true,"w":1024,
+    "h":600,"fps":5}` confirms (this is the page's "stream
+    available" signal), `{"t":"stream","on":false}` on unsubscribe.
+  - bridge → subscribed clients: **binary WebSocket frames**
+    (opcode 0x2), payload = one raw JPEG frame, 1024×600. Binary
+    rather than base64-in-JSON: RFC 6455 carries it natively, no
+    +33 % inflation, no megabyte JSON strings in the page.
+- **Page side** (`panel/bridge.js` only — it is a standalone asset,
+  not generated, so `template.html`/`index.html` are untouched and no
+  `build.py` regen was needed): on WS connect the page sends `hello`
+  as before plus `{"t":"stream","on":true}`. On the bridge's stream
+  confirmation it calls `MPC.takeScreen()` once and paints each
+  binary frame into `MPC.screen` via `createImageBitmap` (Image +
+  object-URL fallback), letterboxed: 1024×600 into the 1184×680
+  canvas is height-limited (1160×680, ~12 px bars left/right). While
+  a frame is decoding, newer frames are dropped — latest wins, no
+  queue build-up. On stream-off or WS disconnect it hands the screen
+  back (`MPC.ownScreen = false`; the built-in display resumes on the
+  next panel interaction). Standalone behaviour without a bridge is
+  unchanged: no confirmation, no takeover. Any panel event type the
+  bridge doesn't forward (e.g. `aftertouch`, or a future
+  screen-touch event) is logged in the page console as unhandled —
+  the stream is display-out only, no touch-back this pass.
+
+**Files changed**: `panel/bridge.py` (`WSClient.send_binary` +
+`frames_raw`, `ScreenStreamer`, the `stream` message, three CLI
+args), `panel/bridge.js` (stream request/paint/restore), and
+`panel/test_client.py` (new `stream` mode: subscribes, counts and
+validates binary frames — SOI/EOI + SOF dimensions — and saves
+first/last frames to `panel-stream-frame[.jpg|.png]` /
+`panel-stream-frame-last.*` in the repo root). **Runtime source
+changes: none.** Restarting the bridge for the new code used the
+documented remedy for the pty/TIOCEXCL gotcha: new bridge first
+(fresh pty), then DCL restarted by exact PID; the wire handshake
+replayed and the scripted BROWSE gate passed before any streaming
+test ran.
+
+**Verification (protocol level, full rig, same standard as before):**
+
+1. **Frames flow**: `test_client.py stream` — 17 frames in 5 s with
+   every frame a complete JPEG at exactly 1024×600, 0 corrupt;
+   longer runs: 83 frames / 20 s (4.15 fps) while a pad burst and a
+   screen switch ran concurrently, 35–36 frames / 8 s (4.4–4.5 fps)
+   in a dedicated window. Frame size ≈17.5–18.8 KB at q60.
+2. **Content proof, static**: a streamed frame of the File Browser
+   screen was **byte-identical** to a direct `import` capture of the
+   GUI taken the same minute (same encoder settings, same pixels).
+3. **Content proof, dynamic**: with the stream running, TRACK_MIX
+   then BROWSE were sent over WS. Streamed first vs last frame:
+   AE 402,152 px (the screen really changed mid-stream); the
+   streamed last frame compared against a direct capture of the
+   GUI's new File Browser screen: **AE 0, RMSE 0** after matching
+   encode settings (the 195k AE of a naive lossless-vs-JPEG compare
+   is JPEG quantisation noise, not content difference — say which
+   comparison you ran when quoting numbers).
+4. **Non-regression during streaming**: BROWSE gate passed *while a
+   stream was flowing* (`{"led","BROWSE",on:true}` returned). Pad
+   burst (10 presses) during a second stream: bridge log shows all
+   pad frames on the pty, and the Elf Drums render-fed in-meters in
+   direct GUI captures ran the established light-then-decay AE
+   sequence 3003 / 3003 / 2552 / 2849 / 1771 / 638 / 121 / 0 against
+   the black baseline (meter crop 290×42 at +150+168;
+   `panel-stream-meter-lit.png` shows the bars at ~80 %,
+   `panel-stream-meter-crop-{baseline,lit}.png` are the crops).
+5. **Cost**: streaming adds ≈0.33 cores by /proc/stat delta over
+   back-to-back 8 s windows with/without a stream (≈0.08–0.13 s CPU
+   per captured frame) — measurable but acceptable, and zero when
+   nobody is subscribed. Achieved fps is load-dependent: 2.9 fps
+   while this session's own 24 extra full-screen captures competed
+   for the same 2 cores, 4.4–4.5 fps in a clean window, vs the 5 fps
+   target.
+
+**Remaining gaps:**
+
+- **Browser-side rendering is still unverified by execution** —
+  the same no-browser-on-this-VM caveat as the rest of bridge.js.
+  Garth's reverse-tunnel session (http://localhost:8793/index.html
+  on his Mac) is the final visual check: on his next page load the
+  new bridge.js requests the stream automatically, and the panel's
+  display should show the real GUI (Track Mixer as of this writing)
+  instead of the built-in BANK/BPM screen. If it stays on the
+  built-in display, the bridge log's `ws stream on` / stats lines
+  separate a page-side failure from a bridge-side one.
+- No frame dedupe: a static screen is re-sent every frame
+  (~90 KB/s per subscriber at target rate). Identical-byte skip with
+  a 1 Hz heartbeat is the obvious optimisation if it ever matters.
+- No touch-back: clicks on the streamed screen area do nothing
+  (logged as unhandled if the panel ever emits them).
+
+## Follow-ons (designed, not built)
 - **Browser-level click verification** once a runnable browser
   exists on the VM (any Chromium/Firefox): load the served page,
   confirm the badge + "Sound: runtime", click pad 1 and BROWSE with
