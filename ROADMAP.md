@@ -19,7 +19,7 @@ can state its claim with a run behind it.
   - [ ] Give the examples a CI-style smoke script (build + timeout run +
         ALSA null) so regressions are one command.
 
-## Phase 2 — "The simulator lives" (nearly done — Oct 28, 2026)
+## Phase 2 — "The simulator lives" ✅ (Oct 28, 2026)
 - [x] Reconcile `apps/kickem` with the published module API: every missing
       symbol resolved per symbol — renamed (`mt::Kick::*` → contracts /
       `BtnLedSequence` / `PadSequence` / `BtnState`), API-migrated (sigslot
@@ -32,11 +32,13 @@ can state its claim with a run behind it.
 - [x] AudIO_constants / AudIO_juce stubs replaced with real reconstructed
       content (constants inferred from call sites; recorder/looper/device
       classes adapted over the published `DRecorder`).
-- [ ] Gate: `KT_KickEM` links, launches under Xvfb, and renders the pad
-      grid. (All TUs compile and link blockers are fixed; final link +
-      launch test are the last steps.)
+- [x] Gate: `KT_KickEM` links, launches under Xvfb, and renders the pad
+      grid. (23 MB binary, alive the full 15 s timeout run, screenshot
+      in repo. The launch also shook out an upstream crash —
+      RecentProject empty-vector deref with no factory content —
+      fixed with a bounds guard.)
 
-## Phase 3 — "The full app on a desktop"
+## Phase 3 — "The full app on a desktop" (current target)
 - Build the real processes (`kick_main`, `kick_gui`, `kick_audio_engine`,
   `kick_device_control`) for x86-64 Linux; run them together against the
   simulator as the hardware peer.

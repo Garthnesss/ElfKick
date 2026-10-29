@@ -1,9 +1,9 @@
 # ElfKick — Status
 
-**Last updated:** 2026-10-28 (simulator session)
-**Phase:** 1 mostly done, 2 nearly done (see ROADMAP.md). Repo created by Garth
-(Garthnesss/ElfKick, public); the import was the first real commit, the
-simulator reconciliation is the second.
+**Last updated:** 2026-10-28 (simulator verified)
+**Phase:** 1 mostly done, 2 DONE, 3 current (see ROADMAP.md). Repo created
+by Garth (Garthnesss/ElfKick, public); import `eb954ef`, simulator
+reconciliation `5fd706a`, simulator verification follows.
 
 ## Where things stand
 - **Upstream mapped.** MusicTribeOpenSource/0700-AAM @ `2719418` cloned and
@@ -29,7 +29,21 @@ simulator reconciliation is the second.
   - Running any example on a machine with no sound card needs
     `asound-null.conf` (the vendored minisdl ignores `SDL_AUDIODRIVER=dummy`
     and null-derefs in its ALSA thread when no card exists).
-- **Kick simulator (KT_KickEM) — RECONCILED; ALL CODE COMPILES.**
+- **Kick simulator (KT_KickEM) — BUILT + LAUNCHES (verified Oct 28, 2026).**
+  23 MB x86-64 binary; `xvfb-run -a timeout 15` run stays alive the full
+  15 s (exit 124 = timeout kill, no crash); the hardware panel renders
+  fully (see `kickem-screenshot.png`). The first launch found a real
+  upstream crash: `ui::RecentProject::visibilityChanged()` dereferences
+  `recentItems[selectedIndex]` unconditionally, but on Linux the content
+  dirs are hardcoded hardware paths (`/app/demos/`, …), so with no
+  factory content the vector is empty → segfault at ~9 s. Fixed with a
+  one-line bounds guard in `kick_RecentProject.cpp` (proven both ways:
+  unpatched binary + factory dirs present = runs; patched binary + no
+  factory content = runs). Standalone AudIO build re-verified after all
+  changes: libraries + 4 examples rebuild, DynamicPatch still runs.
+  Caveat: the reconstruction is compile/launch-faithful, not yet
+  behaviour-verified — nobody has clicked pads end-to-end, and audio
+  output is untested (VM has no sound device).
   Full itemised log: `SIM_BUILD_LOG.md`. Pristine configure dies cloning
   AudIO from a placeholder example.com URL; with local-source overrides +
   reconstructed glue the configure succeeds. The build that previously
@@ -53,17 +67,14 @@ simulator reconciliation is the second.
     no `.emit()`), JUCE 7 Displays pointer API, `kick_ui::KickHome`
     singleton. `input_events` SIM_BUILD path repaired to wrap simulator
     events into `CPktMgr::HWMsg_t` (pads = id base 1000, qlinks = 1100).
-  - Link blockers fixed: kickem now links the `contracts` module +
-    `juce::juce_dsp` directly (58 undefined symbols), and
+  - Link blockers fixed: kickem now links the `contracts` module,
+    `juce::juce_dsp`, and `ipc` directly (58 + 3 undefined symbols), and
     `juce_serialport` — which has **no Linux implementation upstream** —
     gets a repo-kept fail-safe stub (`juce_serialport_Linux.cpp`,
     .gitignore exception; `fetch-deps.sh` preserves it).
   - One upstream bug found en route: `AudIO/Objects/Recorder.h` only
     included `AudioFile.h` when JUCE_VERSION was undefined, despite
     holding a `unique_ptr<AudioFile<float>>` member.
-  - Remaining gate items: the final LTO link finishing cleanly, the
-    headless Xvfb launch test, and re-verifying the standalone AudIO
-    build still passes after the AudIO.h default changes.
 - **Hardware**: no KICK unit; price/availability unconfirmed. Nothing
   hardware-dependent is claimed anywhere in this repo.
 
@@ -89,8 +100,11 @@ simulator reconciliation is the second.
    Mac (Apple Silicon) next, or stay Linux-only until the simulator links?
 
 ## Next actions
-- [ ] Muse: KT_KickEM headless launch test (Xvfb) once the link lands.
-- [ ] Muse: re-verify standalone AudIO build after AudIO.h default changes.
+- [ ] Muse: Phase 3 — build the real processes (kick_main, kick_gui,
+      kick_audio_engine, kick_device_control) and run them against the
+      simulator as the hardware peer.
+- [ ] Muse: exercise the simulator input path end-to-end (pad/knob
+      events → PktMgr packets) once a peer process exists to receive them.
 - [ ] Muse: BasicExample `setParameter` caller hunt (Phase 1 leftover).
 - [ ] Muse: Subdesign `getObject` registry bug (Phase 1 leftover).
 - [ ] Muse: smoke script for the examples (build + ALSA-null timeout runs).

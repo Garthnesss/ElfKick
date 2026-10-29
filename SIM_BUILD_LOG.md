@@ -83,3 +83,41 @@ Build 1 finished at **361 error lines** (from ~1,960). Roots and fixes:
       `Kick/modules/3rdParty/juce_serialport/juce_serialport_Linux.cpp`
       (fail-safe no-ops; .gitignore exception so it is committed, and
       fetch-deps preserves it), added to kickem's sources.
+    - Build 7: only 3 undefined left, all `ipc::MTIPC*` (contracts' DCL
+      code uses the ipc module). kickem CMakeLists also links `ipc`
+      (apps/kick does the same).
+14. Environment note (not a code issue): the VM was reset mid-link during
+    build 8; /tmp was wiped and the X11 -dev packages were briefly missing
+    (Xrandr.h) until the OS package replay restored them. The interrupted
+    link left a 0-byte KT_KickEM that make then considered up-to-date —
+    deleted it to force the relink.
+
+## Result — all success criteria reached (Oct 29, 2026)
+
+- **A. KT_KickEM links.** `build-kick/apps/kickem/KT_KickEM_artefacts/Release/KT_KickEM`,
+  23 MB ELF x86-64, zero errors / zero undefined references.
+- **B. It launches headless.** `xvfb-run -a timeout 15 ./KT_KickEM` →
+  exit **124** (alive the whole 15 s, killed by timeout). Screenshot of the
+  running simulator panel (16 pads, qlinks, banks, transport buttons):
+  `kickem-screenshot.png` in the repo root.
+  - First launch segfaulted (exit 139) after ~9 s. gdb backtrace:
+    `ui::RecentProject::visibilityChanged()` ← `KickHome::handleAsyncUpdate`.
+    Root cause is upstream: it dereferences `recentItems[selectedIndex]`
+    unconditionally, but on Linux all content dirs are the hardcoded
+    hardware paths (`/app/demos/`, `/app/templates/`, `/home/Kick/projects/`,
+    see `common/source/kick_paths.cpp`); with no factory content installed
+    the vector is empty → OOB deref. On hardware the factory demos make
+    this unreachable.
+  - Two proofs: (1) with `/app/demos/Demo 1` (plus templates/projects/prefs
+    dirs) created, the unpatched binary ran the full 15 s; (2) after the
+    one-line ElfKick guard in
+    `Kick/modules/kick_ui/recent_project/kick_RecentProject.cpp`
+    (bounds-check before `showBorder`), the rebuilt binary also runs the
+    full 15 s with **no** factory content present.
+  - Launch noise is expected off-hardware: ALSA SEQ warning, backlight
+    sysfs write, eth0/udhcpc probes from the system-resources code. Audio
+    device init failing (no sound card) is handled — no callbacks, no crash.
+- **C. Standalone AudIO build unaffected.** `scripts/build-audio.sh
+  build-audio-verify` rebuilt libAudIO_Core/libDAW_Core/libAirWindows and
+  all 4 examples (BasicExample, DawExample, DynamicPatch, Subdesign);
+  DynamicPatch still runs under the ALSA null config.

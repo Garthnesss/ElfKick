@@ -434,7 +434,14 @@ namespace ui
             selectedIndex          = ( 0 < ( projectList.getSize() ) ) ? projectStartIndex : 0;
 
             clearAllShowBorder();
-            recentItems[selectedIndex]->showBorder( true );
+            // ElfKick: upstream dereferences recentItems[selectedIndex]
+            // unconditionally; with no factory demos/templates/recent
+            // projects installed (any non-hardware run) the vector is
+            // empty and this segfaults on first show. Guard it.
+            if( !recentItems.empty()
+                && selectedIndex >= 0
+                && selectedIndex < (int) recentItems.size() )
+                recentItems[selectedIndex]->showBorder( true );
 
             // Check if we have come here on first launch,
             if( bFirstLaunch )
