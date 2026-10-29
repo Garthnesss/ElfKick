@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Groovebox Panel</title>
+<style>
+  :root { --bg:#0e0e10; --fg:#d8d8dc; --dim:#8a8a92; --accent:#4fd8ff; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  body { display:flex; flex-direction:column; align-items:center; }
+  header { width:100%; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center;
+    padding:8px 16px; border-bottom:1px solid #222; }
+  header b { letter-spacing:.04em; }
+  header select, header button { background:#1b1b1f; color:var(--fg); border:1px solid #333;
+    border-radius:6px; padding:4px 8px; font:inherit; cursor:pointer; }
+  header button.on { border-color:var(--accent); color:var(--accent); }
+  header .hint { color:var(--dim); font-size:12px; }
+  #midi-status { color:var(--dim); }
+  main { flex:1; width:100%; display:flex; justify-content:center; align-items:center; padding:12px 16px; min-height:0; }
+  #panel { width:min(100%, calc(100vh - 90px)); aspect-ratio:1; }
+  #panel svg { width:100%; height:100%; display:block; user-select:none; -webkit-user-select:none; touch-action:none; }
+  [data-ctl=pad], [data-ctl=button] { cursor:pointer; }
+  [data-ctl=knob], [data-ctl=strip] { cursor:ns-resize; }
+  [data-ctl=jog] { cursor:grab; }
+  .btn .led { opacity:.55; transition:opacity .08s; }
+  .btn.lit .led { opacity:1; filter:url(#softglow); }
+  .btn.down .cap { fill:#121214; }
+  .btn.down .led { opacity:1; }
+  body.learn [data-ctl] { outline:none; }
+  body.learn [data-ctl]:hover { filter:drop-shadow(0 0 4px #4fd8ff); }
+  [data-ctl].armed { filter:drop-shadow(0 0 6px #ffd23f) drop-shadow(0 0 2px #ffd23f) !important; }
+  [data-ctl].mapped-flash { filter:drop-shadow(0 0 6px #5dff9a) !important; }
+  .pad.drop .base { stroke:#fff; stroke-width:3; }
+</style>
+</head>
+<body>
+<header>
+  <b>GROOVEBOX PANEL</b>
+  <label>MIDI in <select id="midi-in"><option value="*">All inputs</option></select></label>
+  <span id="midi-status">MIDI: not started</span>
+  <button id="learn" title="Click a control, then move a knob or hit a key on your MIDI controller">MIDI learn</button>
+  <button id="clear-map">Reset mappings</button>
+  <button id="sound" class="on">Sound on</button>
+  <span class="hint">Pads: keys 1-4 / Q-R / A-F / Z-V · click higher on a pad = louder · drag knobs · drop audio files on pads</span>
+</header>
+<main><div id="panel"><!--PANEL--></div></main>
+
+<script>
+/* =====================================================================
+   MPC panel API — the hook for your emulator.
+     MPC.on('pad',    ({pad, velocity, down}) => ...)   pad 1..16, velocity 0..127
+     MPC.on('button', ({id, down}) => ...)               e.g. 'PLAY', 'SHIFT', 'A'
+     MPC.on('knob',   ({id, value}) => ...)              'MASTER','REC','P1'..'P4', value 0..1
+     MPC.on('jog',    ({delta}) => ...)                  +1 / -1 per detent
+     MPC.on('strip',  ({value}) => ...)                  0..1
+     MPC.on('*', (type, detail) => ...)                  everything
+     MPC.setLed(id, on)          button LED (true/false)
+     MPC.setPad(n, color, level) pad light, level 0..1 (color null = pad's own)
+     MPC.setKnob(id, value)      move a knob without emitting
+     MPC.screen                  <canvas> 1184x680 behind the display
+     MPC.takeScreen()            stop the built-in display so you can draw
+     MPC.sound = false           silence the built-in drum kit
+   ===================================================================== */
+const svg = document.querySelector('#panel svg');
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+const listeners = {};
+const MPC = window.MPC = {
+  on(ev, cb) { (listeners[ev] ||= []).push(cb); return () => listeners[ev] = listeners[ev].filter(f => f !== cb); },
+  emit(ev, d) { (listeners[ev] || []).forEach(f => f(d)); (listeners['*'] || []).forEach(f => f(ev, d)); },
+  knobs: { MASTER: .8, REC: .5, P1: .5, P2: .5, P3: 1, P4: 0 },
+  strip: 0, sound: true, bank: 'A', bpm: 120,
+  screen: $('#screen'),
+  ownScreen: false,
+  takeScreen() { this.ownScreen = true; },
+  setLed(id, on) { $(`#btn-${id}`)?.classList.toggle('lit', !!on); },
+  setPad(n, color, level) {
+    const g = $(`#pad-${n}`); if (!g) return;
+    const c = color || g.style.getPropertyValue('--c');
+    $('.lit', g).setAttribute('fill', c); $('.glow', g).setAttribute('fill', c);
+    $('.lit', g).setAttribute('opacity', (level * .75).toFixed(2));
+    $('.glow', g).setAttribute('opacity', (level * .9).toFixed(2));
+    $('.ring', g).setAttribute('opacity', (.55 + level * .45).toFixed(2));
+  },
+  setKnob(id, v) {
+    v = clamp(v, 0, 1); this.knobs[id] = v;
+    const r = $(`#knob-${id} .rot`); r && r.setAttribute('transform', `rotate(${-135 + 270 * v})`);
+  },
+};
+for (const [k, v] of Object.entries(MPC.knobs)) MPC.setKnob(k, v);
+
+/* ---------- control actions (shared by mouse, keyboard and MIDI) ---------- */
+const PAD_NAMES = ['KICK','SNARE','CL HAT','OP HAT','CLAP','RIM','TOM LO','TOM MID',
+                   'TOM HI','COWBELL','SHAKER','CRASH','BASS C','BASS D#','BASS G','BASS A#'];
+const held = new Set(), repeatTimers = {};
+let last = { text: 'READY', sub: '' }, fullLevel = false;
+
+function padDown(n, vel) {
+  if (fullLevel) vel = 127;
+  held.add(n);
+  MPC.setPad(n, null, vel / 127);
+  MPC.emit('pad', { pad: n, velocity: vel, down: true });
+  playPad(n, vel);
+  last = { text: PAD_NAMES[n - 1], sub: `PAD ${MPC.bank}${String(n).padStart(2, '0')} · VEL ${vel}` };
+  if (buttonsDown.has('NOTE_REPEAT') || $('#btn-NOTE_REPEAT').classList.contains('lit')) {
+    clearInterval(repeatTimers[n]);
+    repeatTimers[n] = setInterval(() => { playPad(n, vel); flash(n, vel); }, 60000 / MPC.bpm / 4);
+  }
+  dirty = true;
+}
+function padUp(n) {
+  held.delete(n); clearInterval(repeatTimers[n]);
+  MPC.setPad(n, null, 0);
+  MPC.emit('pad', { pad: n, velocity: 0, down: false });
+}
+function flash(n, vel) { MPC.setPad(n, null, vel / 127); setTimeout(() => held.has(n) && MPC.setPad(n, null, .25), 40); }
+
+const buttonsDown = new Set(), taps = [];
+function buttonDown(id) {
+  buttonsDown.add(id);
+  $(`#btn-${id}`)?.classList.add('down');
+  MPC.emit('button', { id, down: true });
+  const shift = buttonsDown.has('SHIFT');
+  if ('ABCD'.includes(id) && id.length === 1) {
+    MPC.bank = shift ? 'EFGH'['ABCD'.indexOf(id)] : id;
+    'ABCD'.split('').forEach(b => MPC.setLed(b, b === id));
+  } else if (id === 'FULL_LEVEL' || id === '16_LEVELS') {
+    const el = $(`#btn-${id}`); MPC.setLed(id, !el.classList.contains('lit'));
+    fullLevel = $('#btn-FULL_LEVEL').classList.contains('lit');
+  } else if (id === 'NOTE_REPEAT' && shift) {
+    MPC.setLed(id, !$('#btn-NOTE_REPEAT').classList.contains('lit'));
+  } else if (id === 'TAP_TEMPO') {
+    const t = performance.now();
+    if (taps.length && t - taps[taps.length - 1] > 2000) taps.length = 0;
+    taps.push(t); if (taps.length > 4) taps.shift();
+    if (taps.length > 1) MPC.bpm = Math.round(60000 / ((taps.at(-1) - taps[0]) / (taps.length - 1)));
+  } else if (id === 'INPUT') {
+    const leds = $$('.in-led'); const i = (leds.findIndex(l => l.getAttribute('opacity') === '1') + 1) % leds.length;
+    leds.forEach((l, j) => l.setAttribute('opacity', j === i ? '1' : '.15'));
+  } else if (id === 'PLAY' || id === 'PLAY_START') { MPC.setLed('PLAY', true); MPC.setLed('PLAY_START', id === 'PLAY_START'); }
+  else if (id === 'STOP') { ['PLAY', 'PLAY_START', 'REC', 'OVERDUB'].forEach(b => MPC.setLed(b, false)); }
+  else if (id === 'REC' || id === 'OVERDUB') { MPC.setLed(id, !$(`#btn-${id}`).classList.contains('lit')); }
+  last = { text: id.replace(/_/g, ' '), sub: shift && id !== 'SHIFT' ? 'SHIFT +' : 'BUTTON' };
+  dirty = true;
+}
+function buttonUp(id) {
+  buttonsDown.delete(id);
+  $(`#btn-${id}`)?.classList.remove('down');
+  MPC.emit('button', { id, down: false });
+}
+function knobSet(id, v) {
+  MPC.setKnob(id, v);
+  MPC.emit('knob', { id, value: MPC.knobs[id] });
+  applyAudioParams();
+  last = { text: id, sub: `${Math.round(MPC.knobs[id] * 100)}%` };
+  dirty = true;
+}
+let jogAngle = 0;
+function jogStep(delta) {
+  jogAngle += delta * 12;
+  $('#jog .rot').setAttribute('transform', `rotate(${jogAngle})`);
+  MPC.emit('jog', { delta });
+  last = { text: 'JOG', sub: `${delta > 0 ? '+' : ''}${delta}` };
+  dirty = true;
+}
+function stripSet(v) {
+  MPC.strip = clamp(v, 0, 1);
+  $$('#strip .seg').forEach((s, i) => s.setAttribute('opacity', i < Math.round(MPC.strip * 16) ? '1' : '.12'));
+  MPC.emit('strip', { value: MPC.strip });
+  last = { text: 'TOUCH STRIP', sub: `${Math.round(MPC.strip * 100)}%` };
+  dirty = true;
+}
+MPC.setLed('A', true);
+
+/* ---------- mouse / touch ---------- */
+const drags = new Map();
+svg.addEventListener('pointerdown', e => {
+  const el = e.target.closest('[data-ctl]'); if (!el) return;
+  e.preventDefault(); ensureAudio();
+  const { ctl, id } = el.dataset;
+  if (learning) { arm(el); return; }
+  svg.setPointerCapture(e.pointerId);
+  const d = { ctl, id, el, y: e.clientY, v: MPC.knobs[id] };
+  if (ctl === 'pad') {
+    const r = $('.base', el).getBoundingClientRect();
+    const vel = Math.round(clamp(127 - ((e.clientY - r.top) / r.height) * 87, 20, 127));
+    padDown(+id, vel);
+  } else if (ctl === 'button') buttonDown(id);
+  else if (ctl === 'strip') { d.rect = $('.track', el).getBoundingClientRect(); stripSet(1 - (e.clientY - d.rect.top) / d.rect.height); }
+  else if (ctl === 'jog') {
+    const r = el.getBoundingClientRect(); d.cx = r.left + r.width / 2; d.cy = r.top + r.height / 2;
+    d.a = Math.atan2(e.clientY - d.cy, e.clientX - d.cx); d.acc = 0;
+  }
+  drags.set(e.pointerId, d);
+});
+svg.addEventListener('pointermove', e => {
+  const d = drags.get(e.pointerId); if (!d) return;
+  if (d.ctl === 'knob') knobSet(d.id, d.v + (d.y - e.clientY) / (e.shiftKey ? 800 : 200));
+  else if (d.ctl === 'strip') stripSet(1 - (e.clientY - d.rect.top) / d.rect.height);
+  else if (d.ctl === 'jog') {
+    const a = Math.atan2(e.clientY - d.cy, e.clientX - d.cx);
+    let da = a - d.a; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI;
+    d.a = a; d.acc += da * 180 / Math.PI;
+    while (Math.abs(d.acc) >= 12) { const s = Math.sign(d.acc); jogStep(s); d.acc -= s * 12; }
+  }
+});
+const endDrag = e => {
+  const d = drags.get(e.pointerId); if (!d) return;
+  drags.delete(e.pointerId);
+  if (d.ctl === 'pad') padUp(+d.id);
+  else if (d.ctl === 'button') buttonUp(d.id);
+};
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', endDrag);
+svg.addEventListener('wheel', e => {
+  const el = e.target.closest('[data-ctl=knob],[data-ctl=jog],[data-ctl=strip]'); if (!el) return;
+  e.preventDefault();
+  const s = e.deltaY < 0 ? 1 : -1;
+  if (el.dataset.ctl === 'knob') knobSet(el.dataset.id, MPC.knobs[el.dataset.id] + s * (e.shiftKey ? .005 : .02));
+  else if (el.dataset.ctl === 'jog') jogStep(s);
+  else stripSet(MPC.strip + s * .03);
+}, { passive: false });
+svg.addEventListener('dblclick', e => {
+  const el = e.target.closest('[data-ctl=knob]'); if (el) knobSet(el.dataset.id, .5);
+});
+
+/* ---------- computer keyboard ---------- */
+const KEYMAP = { Digit1: 13, Digit2: 14, Digit3: 15, Digit4: 16, KeyQ: 9, KeyW: 10, KeyE: 11, KeyR: 12,
+                 KeyA: 5, KeyS: 6, KeyD: 7, KeyF: 8, KeyZ: 1, KeyX: 2, KeyC: 3, KeyV: 4 };
+const KEYBTN = { Space: 'PLAY', Escape: 'STOP', ShiftLeft: 'SHIFT', ShiftRight: 'SHIFT', Enter: 'REC',
+                 ArrowUp: 'CUR_UP', ArrowDown: 'CUR_DOWN', ArrowLeft: 'CUR_LEFT', ArrowRight: 'CUR_RIGHT' };
+addEventListener('keydown', e => {
+  if (e.repeat || e.target.closest?.('select')) return;
+  if (e.code === 'Escape' && armed) { disarm(); return; }
+  ensureAudio();
+  if (KEYMAP[e.code]) { e.preventDefault(); padDown(KEYMAP[e.code], e.altKey ? 64 : 110); }
+  else if (KEYBTN[e.code]) { e.preventDefault(); buttonDown(KEYBTN[e.code]); }
+  else if (e.code === 'BracketLeft' || e.code === 'BracketRight') jogStep(e.code === 'BracketRight' ? 1 : -1);
+});
+addEventListener('keyup', e => {
+  if (KEYMAP[e.code]) padUp(KEYMAP[e.code]);
+  else if (KEYBTN[e.code]) buttonUp(KEYBTN[e.code]);
+});
+
+/* ---------- built-in drum kit (Web Audio) ---------- */
+let ac, out, filt, delay, fb, wet, noise;
+const samples = {};
+function ensureAudio() {
+  if (ac) { ac.state === 'suspended' && ac.resume(); return; }
+  ac = new AudioContext();
+  out = ac.createGain(); filt = ac.createBiquadFilter(); filt.type = 'lowpass';
+  delay = ac.createDelay(1); fb = ac.createGain(); wet = ac.createGain();
+  out.connect(filt); filt.connect(ac.destination);
+  filt.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(ac.destination);
+  noise = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+  const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  applyAudioParams();
+}
+function applyAudioParams() {
+  if (!ac) return;
+  const k = MPC.knobs, t = ac.currentTime;
+  out.gain.setTargetAtTime(k.MASTER ** 2 * 1.2, t, .02);
+  filt.frequency.setTargetAtTime(200 * 100 ** k.P3, t, .02);
+  delay.delayTime.setTargetAtTime(60 / MPC.bpm * .75, t, .05);
+  fb.gain.setTargetAtTime(k.P4 * .5, t, .02);
+  wet.gain.setTargetAtTime(k.P4 * .6, t, .02);
+}
+function env(g, t, peak, dec) { g.gain.setValueAtTime(peak, t); g.gain.exponentialRampToValueAtTime(.0001, t + dec); }
+function osc(type, f, t, dec, peak, fEnd) {
+  const o = ac.createOscillator(), g = ac.createGain(); o.type = type;
+  o.frequency.setValueAtTime(f, t); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t + dec * .6);
+  env(g, t, peak, dec); o.connect(g); g.connect(out); o.start(t); o.stop(t + dec + .05);
+}
+function hiss(t, dec, peak, type, freq, q = 1) {
+  const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  s.buffer = noise; f.type = type; f.frequency.value = freq; f.Q.value = q;
+  env(g, t, peak, dec); s.connect(f); f.connect(g); g.connect(out); s.start(t); s.stop(t + dec + .05);
+}
+function playPad(n, vel) {
+  if (!MPC.sound || !ac) return;
+  const t = ac.currentTime, v = (vel / 127) ** 1.5, tune = 2 ** ((MPC.knobs.P1 - .5) * 24 / 12),
+        dec = .25 + MPC.knobs.P2 * 1.5;
+  if (samples[n]) {
+    const s = ac.createBufferSource(), g = ac.createGain();
+    s.buffer = samples[n]; s.playbackRate.value = tune; g.gain.value = v;
+    s.connect(g); g.connect(out); s.start(t); return;
+  }
+  const bass = f => { osc('sawtooth', f * tune, t, dec * .8, v * .35); osc('sine', f * tune / 2, t, dec, v * .5); };
+  switch (n) {
+    case 1: osc('sine', 150 * tune, t, dec * .9, v, 42 * tune); break;
+    case 2: osc('triangle', 190 * tune, t, .12, v * .6, 140); hiss(t, dec * .4, v * .7, 'highpass', 1200); break;
+    case 3: hiss(t, .05, v * .5, 'highpass', 7000); break;
+    case 4: hiss(t, dec * .5, v * .4, 'highpass', 6500); break;
+    case 5: [0, .011, .022].forEach(o => hiss(t + o, .03, v * .6, 'bandpass', 1300, 2)); hiss(t + .033, dec * .3, v * .6, 'bandpass', 1300, 2); break;
+    case 6: osc('square', 1700 * tune, t, .03, v * .3); osc('triangle', 480 * tune, t, .05, v * .4); break;
+    case 7: osc('sine', 110 * tune, t, dec * .7, v * .9, 70 * tune); break;
+    case 8: osc('sine', 160 * tune, t, dec * .6, v * .9, 100 * tune); break;
+    case 9: osc('sine', 230 * tune, t, dec * .5, v * .9, 150 * tune); break;
+    case 10: osc('square', 560 * tune, t, dec * .3, v * .2); osc('square', 845 * tune, t, dec * .3, v * .2); break;
+    case 11: hiss(t, .08, v * .4, 'bandpass', 5000, 3); break;
+    case 12: hiss(t, dec * 1.6, v * .45, 'highpass', 4000); break;
+    case 13: bass(65.41); break; case 14: bass(77.78); break;
+    case 15: bass(98); break; case 16: bass(116.54); break;
+  }
+}
+$('#sound').onclick = e => { MPC.sound = !MPC.sound; e.target.classList.toggle('on', MPC.sound); e.target.textContent = MPC.sound ? 'Sound on' : 'Sound off'; };
+
+// drop an audio file on a pad to load it as that pad's sample
+svg.addEventListener('dragover', e => {
+  e.preventDefault(); $$('.pad.drop').forEach(p => p.classList.remove('drop'));
+  document.elementFromPoint(e.clientX, e.clientY)?.closest('.pad')?.classList.add('drop');
+});
+svg.addEventListener('dragleave', () => $$('.pad.drop').forEach(p => p.classList.remove('drop')));
+svg.addEventListener('drop', async e => {
+  e.preventDefault(); $$('.pad.drop').forEach(p => p.classList.remove('drop'));
+  const pad = document.elementFromPoint(e.clientX, e.clientY)?.closest('.pad');
+  const file = e.dataTransfer.files[0]; if (!pad || !file) return;
+  ensureAudio();
+  try {
+    samples[pad.dataset.id] = await ac.decodeAudioData(await file.arrayBuffer());
+    PAD_NAMES[pad.dataset.id - 1] = file.name.replace(/\.[^.]+$/, '').slice(0, 12).toUpperCase();
+    last = { text: PAD_NAMES[pad.dataset.id - 1], sub: `LOADED TO PAD ${pad.dataset.id}` };
+  } catch { last = { text: 'LOAD FAILED', sub: file.name }; }
+  dirty = true;
+});
+
+/* ---------- Web MIDI with learn ---------- */
+const DEFAULT_MAP = {};
+for (let i = 0; i < 16; i++) DEFAULT_MAP['n' + (36 + i)] = { ctl: 'pad', id: String(i + 1) };
+['P1', 'P2', 'P3', 'P4', 'MASTER', 'REC'].forEach((id, i) => DEFAULT_MAP['c' + (70 + i)] = { ctl: 'knob', id });
+DEFAULT_MAP.c1 = { ctl: 'strip', id: 'STRIP' };
+DEFAULT_MAP.pb = { ctl: 'strip', id: 'STRIP' };
+let midiMap = store.get('mpc-midi-map', DEFAULT_MAP);
+let learning = false, armed = null, midiAccess = null, lastMidi = '—';
+
+function arm(el) { disarm(); armed = el; el.classList.add('armed'); last = { text: 'LEARN', sub: `${el.dataset.id}: move a MIDI control` }; dirty = true; }
+function disarm() { armed?.classList.remove('armed'); armed = null; }
+$('#learn').onclick = e => {
+  learning = !learning; document.body.classList.toggle('learn', learning);
+  e.target.classList.toggle('on', learning); if (!learning) disarm();
+  last = learning ? { text: 'MIDI LEARN', sub: 'click a control' } : { text: 'READY', sub: '' }; dirty = true;
+};
+$('#clear-map').onclick = () => { midiMap = { ...DEFAULT_MAP }; store.set('mpc-midi-map', midiMap); last = { text: 'MAPPINGS RESET', sub: '' }; dirty = true; };
+
+function onMidi(msg) {
+  const [st, a, b = 0] = msg.data, type = st & 0xf0;
+  let key, val, on;
+  if (type === 0x90 || type === 0x80) { key = 'n' + a; on = type === 0x90 && b > 0; val = b; }
+  else if (type === 0xb0) { key = 'c' + a; val = b; }
+  else if (type === 0xe0) { key = 'pb'; val = ((b << 7) | a) / 16383 * 127; }
+  else if (type === 0xa0) { MPC.emit('aftertouch', { note: a, value: b }); return; }
+  else return;
+  lastMidi = `${key.startsWith('n') ? 'NOTE' : key === 'pb' ? 'BEND' : 'CC'} ${key === 'pb' ? '' : a} ${Math.round(val)} ch${(st & 15) + 1}`;
+  dirty = true;
+  if (armed) {
+    if (key.startsWith('n') && !on) return;  // learn from note-on only
+    for (const k in midiMap) if (k === key) delete midiMap[k];
+    midiMap[key] = { ctl: armed.dataset.ctl, id: armed.dataset.id };
+    store.set('mpc-midi-map', midiMap);
+    const el = armed; disarm(); el.classList.add('mapped-flash'); setTimeout(() => el.classList.remove('mapped-flash'), 500);
+    last = { text: 'MAPPED', sub: `${lastMidi} → ${el.dataset.id}` };
+    return;
+  }
+  const m = midiMap[key]; if (!m) return;
+  ensureAudio();
+  const isNote = key.startsWith('n');
+  if (m.ctl === 'pad') { isNote ? (on ? padDown(+m.id, val) : padUp(+m.id)) : (val > 0 ? padDown(+m.id, val) : padUp(+m.id)); }
+  else if (m.ctl === 'button') { (isNote ? on : val >= 64) ? buttonDown(m.id) : buttonUp(m.id); }
+  else if (m.ctl === 'knob') { if (!isNote || on) knobSet(m.id, val / 127); }
+  else if (m.ctl === 'strip') stripSet(val / 127);
+  else if (m.ctl === 'jog') { if (isNote) { on && jogStep(1); } else jogStep(val === 0 || val === 64 ? 0 : val < 64 ? val : val - 128); }
+}
+function bindInputs() {
+  const sel = $('#midi-in').value;
+  for (const inp of midiAccess.inputs.values()) inp.onmidimessage = (sel === '*' || sel === inp.id) ? onMidi : null;
+}
+function refreshInputs() {
+  const s = $('#midi-in'), cur = s.value;
+  s.innerHTML = '<option value="*">All inputs</option>' +
+    [...midiAccess.inputs.values()].map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+  s.value = [...s.options].some(o => o.value === cur) ? cur : '*';
+  $('#midi-status').textContent = `MIDI: ${midiAccess.inputs.size} input${midiAccess.inputs.size === 1 ? '' : 's'}`;
+  bindInputs();
+}
+$('#midi-in').onchange = bindInputs;
+if (navigator.requestMIDIAccess) {
+  navigator.requestMIDIAccess().then(a => { midiAccess = a; refreshInputs(); a.onstatechange = refreshInputs; })
+    .catch(err => $('#midi-status').textContent = 'MIDI: blocked (' + err.name + ')');
+} else $('#midi-status').textContent = 'MIDI: not supported in this browser (use Chrome/Edge)';
+
+/* ---------- built-in display ---------- */
+let dirty = true;
+const cx = MPC.screen?.getContext('2d');
+function drawScreen() {
+  requestAnimationFrame(drawScreen);
+  if (!cx || MPC.ownScreen || !dirty) return;
+  dirty = false;
+  const W = 1184, H = 680;
+  cx.fillStyle = '#0a0d12'; cx.fillRect(0, 0, W, H);
+  cx.fillStyle = '#151c26'; cx.fillRect(0, 0, W, 64);
+  cx.font = '600 30px -apple-system,Helvetica,Arial'; cx.textBaseline = 'middle';
+  cx.fillStyle = '#4fd8ff'; cx.fillText(`BANK ${MPC.bank}`, 28, 32);
+  cx.fillStyle = '#d8d8dc'; cx.fillText(`${MPC.bpm} BPM`, 220, 32);
+  cx.fillStyle = '#8a93a0'; cx.textAlign = 'right'; cx.fillText(`MIDI ${lastMidi}`, W - 28, 32); cx.textAlign = 'left';
+  cx.fillStyle = '#ffffff'; cx.font = '700 120px -apple-system,Helvetica,Arial';
+  cx.textAlign = 'center'; cx.fillText(last.text, W / 2, 250);
+  cx.fillStyle = '#8a93a0'; cx.font = '500 36px -apple-system,Helvetica,Arial'; cx.fillText(last.sub, W / 2, 350);
+  cx.textAlign = 'left';
+  ['P1', 'P2', 'P3', 'P4'].forEach((k, i) => {
+    const x = 28 + i * 290, y = 470;
+    cx.fillStyle = '#8a93a0'; cx.font = '600 26px -apple-system,Helvetica,Arial';
+    cx.fillText(['TUNE', 'DECAY', 'FILTER', 'DELAY'][i], x, y);
+    cx.fillStyle = '#1d2530'; cx.fillRect(x, y + 26, 250, 18);
+    cx.fillStyle = '#4fd8ff'; cx.fillRect(x, y + 26, 250 * MPC.knobs[k], 18);
+  });
+  cx.fillStyle = '#ff4fa8'; cx.fillRect(28, 600, (W - 56) * MPC.knobs.MASTER, 10);
+  cx.fillStyle = '#8a93a0'; cx.font = '600 22px -apple-system,Helvetica,Arial'; cx.fillText('MASTER', 28, 636);
+}
+requestAnimationFrame(drawScreen);
+</script>
+<script src="bridge.js"></script>
+</body>
+</html>

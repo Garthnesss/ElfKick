@@ -1,10 +1,34 @@
 # ElfKick — Status
 
-**Last updated:** 2026-10-28 (Phase 3 runtime verified)
-**Phase:** 1 mostly done, 2 DONE, 3 essentially done — system runs
-together (see ROADMAP.md). Repo created by Garth (Garthnesss/ElfKick,
-public); import `eb954ef`, simulator `5fd706a` + `6fc84d9`, Phase 3
-build `411051f`, runtime results follow.
+**Last updated:** 2026-10-29 (Phase 3 COMPLETE; web panel bridged)
+**Phase:** 1 mostly done, 2 DONE, 3 **COMPLETE** — system runs
+together, pad press triggers a voice, and Garth's web panel drives
+the real runtime (see below). Repo created by Garth
+(Garthnesss/ElfKick, public).
+
+## Web panel front end — BRIDGED + VERIFIED (Oct 29, 2026)
+Garth's groovebox panel (vendored in `panel/`, his design) is now a
+working front end for the real runtime (full record:
+`panel/BRIDGE.md`). The bridge **plays the panel MCU**: it owns a pty
+at the hardware serial device name and speaks the real CPktMgr wire
+format to the real KickDeviceControl, so web events travel 100% of
+the hardware path and LED feedback returns on the same wire. The one
+runtime source change: the `juce_serialport` Linux stub became a real
+termios backend behind the existing API. Wire discovery: MCU frames
+end with `'\n'` after the CRC (upstream's sender has it commented
+out; the receiver's slicing proves it). Verified on the staged rig:
+web pad 1 → Elf Drums render meters lit ~80% with sample decay;
+BROWSE and TRACK_MIX switch the GUI screen; the GUI's LED frames
+return to the web client as MPC-shaped events. Mapping covers all 16
+pads + 40+ buttons + P1–P4 + jog + strip; gaps flagged honestly in
+BRIDGE.md (INPUT button has no runtime counterpart; MASTER/REC qlink
+codes invented, upstream leaves them unwired too; banks E–H fold to
+A–D). **Caveat: a click inside a real browser page is not yet
+verified** — no runnable browser exists on the VM; bridge.js is
+proven by inspection, every server-side hop by execution, and
+BRIDGE.md documents the exact browser-level re-check. Serve it with
+`scripts/serve-panel.sh` (panel :8793, bridge :8794). Screen
+streaming into MPC.screen is designed in BRIDGE.md, not built.
 
 ## Where things stand
 - **Upstream mapped.** MusicTribeOpenSource/0700-AAM @ `2719418` cloned and
@@ -179,8 +203,12 @@ build `411051f`, runtime results follow.
       semantics preserved as the other mode.
 - [x] Muse: pad test against authored content — Phase 3 gate PASSED
       Oct 29, 2026 (see above).
-- [ ] Muse: Phase 5 — one-command emulator launcher
-      (`scripts/run-emulator.sh`), APP_PLATFORM.md, starter app.
+- [ ] Muse: Phase 5 — one-command full-rig launcher
+      (`scripts/run-emulator.sh`; `scripts/serve-panel.sh` already
+      covers the panel + bridge), APP_PLATFORM.md, starter app.
+- [ ] Anyone with a browser: the panel/BRIDGE.md browser-level
+      re-check (open the served panel, click a pad, watch the LED
+      feedback in-page) — the one unverified hop.
 - [ ] Muse: content pipeline follow-up — the app's autosave never
       rewrote the generated .kickPrj (byte-identical after 15+ s,
       even after a GUI edit), so the "golden reference" normalised
