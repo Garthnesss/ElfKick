@@ -1,9 +1,40 @@
 #include "kick_Simulator.h"
 
+#include <cstdlib>
+#include <iostream>
+#include <string>
+
 namespace sim
 {
 #define padSpacing  20
 #define TOTAL_DRUM_PADS 16
+
+namespace
+{
+// ElfKick pad-gate runtime switch (Garth, Oct 28 2026). Upstream's pad
+// widget suppresses input while a pad is PadButtonState::StateOff; on the
+// real device the MCU sends pad packets unconditionally, so that gate is
+// simulator-only. Both behaviours stay available:
+//   ELFKICK_PADS=always   (default) pads emit on click regardless of state
+//   ELFKICK_PADS=upstream exact original StateOff early-return behaviour
+// Read once, lazily on first use — SimulatorButtonGrid's ctor calls this
+// at panel construction so the active mode is logged at startup.
+bool elfKickPadsAlwaysEmit()
+{
+    static const bool alwaysEmit = []
+    {
+        const char* mode = std::getenv("ELFKICK_PADS");
+        const bool upstream = (mode != nullptr && std::string(mode) == "upstream");
+        std::cout << "ElfKick: ELFKICK_PADS=" << (mode != nullptr ? mode : "(unset)")
+                  << " -> pad gate mode: "
+                  << (upstream ? "upstream (StateOff gate active)"
+                               : "always (pads emit regardless of state)")
+                  << std::endl;
+        return ! upstream;
+    }();
+    return alwaysEmit;
+}
+} // namespace
 
 KickSimulatorButton::KickSimulatorButton(int p)
     :pos(p)
@@ -33,7 +64,13 @@ void KickSimulatorButton::paint(juce::Graphics& g)
 
 void KickSimulatorButton::mouseDown(const juce::MouseEvent&)
 {
-    if (state == PadButtonState::StateOff)
+    // ElfKick: pad gate is runtime-switchable (see elfKickPadsAlwaysEmit
+    // above). In "upstream" mode the condition below reduces to the exact
+    // original `state == PadButtonState::StateOff` early return; in the
+    // default "always" mode pads emit regardless of state, matching the
+    // real device whose MCU sends pad packets unconditionally.
+    // paint() still reflects StateOff visually in both modes.
+    if (! elfKickPadsAlwaysEmit() && state == PadButtonState::StateOff)
         return;
 
     padStateChanged(pos, true);
@@ -43,7 +80,8 @@ void KickSimulatorButton::mouseDown(const juce::MouseEvent&)
 
 void KickSimulatorButton::mouseUp(const juce::MouseEvent&)
 {
-    if (state == PadButtonState::StateOff)
+    // ElfKick: same switch as mouseDown — release is gated identically.
+    if (! elfKickPadsAlwaysEmit() && state == PadButtonState::StateOff)
         return;
 
     padStateChanged(pos, false);
@@ -53,6 +91,10 @@ void KickSimulatorButton::mouseUp(const juce::MouseEvent&)
 
 SimulatorButtonGrid::SimulatorButtonGrid()
 {
+    // ElfKick: resolve the pad-gate switch now so the active mode is
+    // logged at startup, not on the first pad press.
+    (void) elfKickPadsAlwaysEmit();
+
     padColour.resize(128, PadColourIds::PadColourTrans);
     padState.resize(128, PadButtonState::StateOff);
     auto triggerHwEvent = [this](int pos, bool pressed)

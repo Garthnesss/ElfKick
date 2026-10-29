@@ -174,14 +174,19 @@ build `411051f`, runtime results follow.
    Mac (Apple Silicon) next, or stay Linux-only until the simulator links?
 
 ## Next actions
-- [ ] Garth: decide the simulator pad gate — keep upstream semantics
-      (pads inert until the app arms them) or make the deliberate
-      ElfKick emulator change (pads emit on click regardless of
-      state; the real device has no such gate because its MCU always
-      sends). Muse's recommendation: change it — an emulator whose
-      pads can't be pressed blocks app/content development.
-- [ ] Muse: with the gate decided, re-run the pad test against the
-      GUI-created DRUM program to close the Phase 3 gate.
+- [x] Garth: pad-gate decision — made Oct 28, 2026: pads always emit,
+      implemented as the `ELFKICK_PADS` runtime switch with upstream
+      semantics preserved as the other mode.
+- [x] Muse: pad test against authored content — Phase 3 gate PASSED
+      Oct 29, 2026 (see above).
+- [ ] Muse: Phase 5 — one-command emulator launcher
+      (`scripts/run-emulator.sh`), APP_PLATFORM.md, starter app.
+- [ ] Muse: content pipeline follow-up — the app's autosave never
+      rewrote the generated .kickPrj (byte-identical after 15+ s,
+      even after a GUI edit), so the "golden reference" normalised
+      file is still outstanding; find the explicit-save path.
+      (Symmetric positive: the generator's output is exactly what
+      loads and persists.)
 - [ ] Muse: create or source a content-bearing project (a drum
       program with synth voices) so a trigger has something to play.
 - [ ] Muse: document the staged-system launch recipe as a script

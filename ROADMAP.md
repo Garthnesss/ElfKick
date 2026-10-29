@@ -50,8 +50,10 @@ can state its claim with a run behind it.
       with the repo's `Kick/assets` tree in place it renders the real
       Projects screen. See RUNTIME_LOG.md.
 - Gate: GUI boots **and draws** ✅, audio engine answers IPC ✅,
-  a pad press in the simulator makes sound through AudIO — **the one
-  item still unverified**.
+  a pad press in the simulator makes sound through AudIO ✅ —
+  **gate fully MET Oct 29, 2026** (PAD_GATE_LOG.md: press → track →
+  drum program → output meters tracking the sample envelope, in an
+  authored project).
 
 ## Phase 5 — "The emulator: app platform + content pipeline" (Garth's goal, Oct 28, 2026)
 The fork's purpose: pre-make things for the device on a desktop rig that
@@ -73,12 +75,14 @@ reproduces its layout and runtime. Two deliverable lines:
   visibly changes its screen, and it can drive a pad LED back.
 
 **Content pipeline**
-- [ ] Reverse the project/program file format from the loader code
-      (projectManager / ValueTree serialisation) well enough to
-      *author* files the stock software opens.
-- [ ] A first hand-made content pack: one project with a drum program
-      built on AudIO synth voices (not samples — the factory samples
-      were never released).
+- [x] Reverse the project/program file format from the loader code —
+      done Oct 28, 2026 (PROJECT_FORMAT.md: plain-XML ValueTree,
+      directory + `.kickPrj`, forgiving loader).
+- [x] A first hand-made content pack — done Oct 29, 2026, as a
+      generator (`scripts/make_test_project.py` → ElfTest01: drum
+      program + synthesised kick.wav; AudIO drum voices are sample
+      playback, so the "synth voice" is a generated sample). It loads
+      and triggers (Phase 3 gate evidence).
 - Gate: the stock GUI loads our project, and (with the Phase 3 input
   fix in) a simulator pad press triggers a voice — meter/log evidence
   on this sound-card-less VM, ears when hardware exists.

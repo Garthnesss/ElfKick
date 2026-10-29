@@ -227,12 +227,21 @@ Its per-pad sounds ("clips") live under the program:
 Pad press → (DCL/IPC, the input-path workstream) → note delivered to
 the **selected track's program** → `DrumProgram::noteOn(note)` → clip
 with that exact `keyNote` → layer with non-empty `source` → asset slice
-→ `DrumVoice`. The program's pad layout defaults to chromatic
-performance mode (`MTIPadPerformanceData` defaults: mode CHROMATIC,
-root C, octave "-2", `mt_audio_interface_types.cpp:380-391`), i.e. the
-MPC-style base note **36** for pad 1 — treat 36 as the expected first
-pad note, and for a smoke-test project put a clip on **every note
-36–51** (bank A) so any pad in the bank triggers (§6).
+→ `DrumVoice`.
+
+> **Erratum (Oct 29, 2026, PAD_GATE_LOG Round 1 — supersedes the
+> base-36 claim originally made here):** the physical pad-note space
+> is **0-based**. `AppMainmode::handleCommand` builds
+> `noteOn(1, padNo + bankOffset, velocity)` with
+> `bankOffset = 16 × (bank − 'A')` (`getBankOffset`), and no stage
+> after it transposes (track/sequence transposes default 0;
+> `DrumProgram::noteOn` looks the note up verbatim). So bank A pads
+> deliver notes **0–15**, and a smoke-test project's clips must be
+> keyed **0–15** — as the generator now does. The
+> `MTIPadPerformanceData` defaults (CHROMATIC, root C, octave "-2" →
+> base 36) govern a different path (pad-performance/MIDI-input
+> mapping), not physical pad delivery. §6's skeleton shows 36–51;
+> read it as 0–15.
 
 ## 4. The empty-project fallback, end to end
 
