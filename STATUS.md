@@ -107,9 +107,23 @@ build `411051f`, runtime results follow.
     With `KT_KickEM` running alongside as the hardware peer, all six
     processes stayed alive simultaneously, and the simulator's centre
     cut-out renders the themed Projects screen
-    (`kick-simulator-screenshot.png`). Still unverified: an actual
-    pad press producing sound — the input path is wired (Phase 2) but
-    nobody has clicked through it end-to-end yet.
+    (`kick-simulator-screenshot.png`).
+  - **Pad-press test (Oct 28, 2026): gate NOT passed, break localised
+    exactly** (full record: `PAD_TEST_LOG.md`). Real X11 clicks into
+    the simulator: the pad component fires, but nothing downstream
+    reacts — because **kickem never calls
+    `Controls::InputEvents::initialize()`** (its only callers are
+    apps/kick's adapter, kick_device_control's main, _playback), so
+    the Phase 2 SIM_BUILD wrapper is never armed in the simulator and
+    the panel emits into a signal with zero slots; the
+    dispatch→DclSignals bridge (KickDeviceAdapter) isn't compiled
+    into kickem either. Not an AudIO/engine/IPC failure — a missing
+    initialisation in upstream's simulator app. Fix is scoped to a
+    few lines in kickem's init (mirror KickDeviceAdapter) and is in
+    progress. Second blocker behind it: Demo 01 is an **empty**
+    project (factory demo content wasn't released — only tile
+    artwork), so an audible voice also needs a content-bearing
+    project; and the VM has no sound device regardless.
   - `KickDeviceControl` stays alive under timeout (serial = fail-safe
     stub). `KickMain` exits 0 immediately with no arguments — it
     expects its supervisor runtime config; clean exit, not a crash.
@@ -140,9 +154,11 @@ build `411051f`, runtime results follow.
    Mac (Apple Silicon) next, or stay Linux-only until the simulator links?
 
 ## Next actions
-- [ ] Muse: exercise the simulator input path end-to-end (pad/knob
-      events → PktMgr packets → engine) and verify a pad press makes
-      sound through AudIO — the last unverified Phase 3 gate item.
+- [ ] Muse: apply the kickem InputEvents fix (in progress), rebuild,
+      re-run the pad test — success = the press observably propagates
+      to GUI/engine (sound itself needs a content-bearing project).
+- [ ] Muse: create or source a content-bearing project (a drum
+      program with synth voices) so a trigger has something to play.
 - [ ] Muse: document the staged-system launch recipe as a script
       (RUNTIME_LOG.md has the copy-paste version).
 - [ ] Muse: BasicExample `setParameter` caller hunt (Phase 1 leftover).
