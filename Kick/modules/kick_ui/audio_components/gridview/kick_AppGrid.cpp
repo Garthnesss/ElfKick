@@ -477,6 +477,7 @@ namespace kick_ui
             case mt::MTProgramType::Keygroup:
             case mt::MTProgramType::Midi:
             case mt::MTProgramType::Cv:
+            case mt::MTProgramType::Synth: // ElfKick addition: synth tracks show the keys grid
                 viewType = GridViewType::MidiView;
                 notesComp.setType( NotesView::Type::Keys );
                 break;

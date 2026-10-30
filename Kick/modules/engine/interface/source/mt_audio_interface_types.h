@@ -103,7 +103,8 @@ namespace mt
         Clip     = 4,
         Plugin   = 5,
         Cv       = 6,
-        Unknown  = 7
+        Unknown  = 7,
+        Synth    = 8 // ElfKick addition (SYNTH_DESIGN.md §2.1): appended, never renumber upstream values.
     };
 
     enum class MTProgramCategory
@@ -244,6 +245,7 @@ namespace mt
             case MTProgramType::Clip: return "Clip";
             case MTProgramType::Cv: return "CV";
             case MTProgramType::Plugin: return "Plugin";
+            case MTProgramType::Synth: return "Synth"; // ElfKick addition
             default: return "Unknown";
         }
     }
@@ -257,6 +259,7 @@ namespace mt
         if( S.equalsIgnoreCase( "Clip" ) ) return MTProgramType::Clip;
         if( S.equalsIgnoreCase( "CV" ) ) return MTProgramType::Cv;
         if( S.equalsIgnoreCase( "Plugin" ) ) return MTProgramType::Plugin;
+        if( S.equalsIgnoreCase( "Synth" ) ) return MTProgramType::Synth; // ElfKick addition
         // Fallback, default to it.
         return MTProgramType::Unknown;
     }

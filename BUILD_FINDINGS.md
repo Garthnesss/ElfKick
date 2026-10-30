@@ -216,3 +216,21 @@ for the removed GM SoundFont with different wording. Consequences:
 - `ignite_constants.h` is that product's UI/sequencer constants, not
   an AudIO engine-constants module — it cannot validate our
   reconstructed `AudIO_constants` values.
+
+---
+
+## Addendum (Oct 30, 2026) — juce_dsp link gap found by the synth build
+
+`juce::juce_dsp` was linked by kick/kick_gui/kickem only — NOT by
+KickAudioEngine or KickAudioModel. The engine still linked with the
+synth's TPT SVF referenced (LTO pruned the unresolved symbols),
+but any consumer that actually instantiates
+`juce::dsp::StateVariableTPTFilter` (the synth harness did) fails
+to link. Fix, marked as an ElfKick change: append
+`target_link_libraries(<target> PRIVATE juce::juce_dsp)` in
+`apps/kick_audio_engine/CMakeLists.txt` and
+`apps/kick_audio_model/CMakeLists.txt`. Lesson: with these LTO
+unity builds, "it links" is not evidence a symbol is available —
+and symbol archaeology on the stripped/LTO binaries is unreliable
+(the known-good pre-synth engine binary shows zero DrumVoice
+symbols too). Functional gates are the arbiters.

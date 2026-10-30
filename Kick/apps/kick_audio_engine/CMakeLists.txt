@@ -173,3 +173,6 @@ install(
     DIRECTORY "${CMAKE_SOURCE_DIR}/demos" DESTINATION "."
     PATTERN "${CMAKE_SOURCE_DIR}/demos/*"
 )
+
+# ElfKick addition: juce_dsp for the synth voice's TPT SVF (SYNTH_DESIGN.md §5.1)
+target_link_libraries(${TargetName} PRIVATE juce::juce_dsp)

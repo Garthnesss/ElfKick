@@ -176,3 +176,33 @@ Notes: the UI is designed for a 1024x600 touchscreen, so at
 1920x1200 the home screen's lists hug the left column — expected,
 not a scaling bug. No source changes were needed for any of this;
 the only tree additions are this log and the two screenshots.
+
+# Addendum (Oct 30, 2026) — hard-won rig lessons from the synth build
+
+**Bridge/DCL start order matters (TIOCEXCL).** The serial backend
+sets TIOCEXCL on the pty slave; the flag persists while the bridge
+holds the master, so after a KickDeviceControl dies, the NEXT DCL
+silently fails to open /dev/ttymxc0 ("Serial Not Found") and the
+pad/button path is dead with no GUI-visible error. Tell-tale: the
+bridge log shows no `pty rx` (SYSTEM/SLIDER) frames from the new
+DCL. Remedy: start the bridge FIRST (fresh pty), then the rig (or
+restart just the DCL via `scripts/serve-panel.sh`, which does the
+ordering for a running rig). KickMain-spawned DCLs are fine as long
+as the pty they open is fresh.
+
+**GUI meters cannot judge sustained sound.** The track meter
+decays visually on constant input (and can even jump after a
+release). It is valid for attack/decay signatures (drums) only.
+For held-note truth, capture the engine's output: use
+`asound-capture.conf` (file plugin direct — WARNING: unpaced, the
+engine free-runs and writes ~15 MB/s) or, better,
+`asound-fifo.conf` + `scripts/rig_capture_reader.py <bytes/s>`
+(FIFO backpressure paces the engine; the negotiated format here
+was float32, 4 channels, 48 kHz). Start the reader before the
+engine. Evidence from the synth proof: `rig-captures/`.
+
+**Sequence playback is silent in this rig.** The transport
+counter advances, but no program (drum or synth) receives pattern
+notes audibly — live pad input is the working note path. Also:
+never switch projects while the transport plays (the stock app
+refuses once, and once quit the GUI with exit code 0).

@@ -106,6 +106,7 @@ namespace mt
         if( type == MTProgramType::Midi ) prog = new MTMidiProgram( engine, VT, undoManager );
         if( type == MTProgramType::Cv ) prog = new MTCVProgram( engine, VT, undoManager );
         if( type == MTProgramType::Audio ) prog = new MTAudioProgram( engine, VT, undoManager );
+        if( type == MTProgramType::Synth ) prog = new MTSynthProgram( engine, VT, undoManager ); // ElfKick addition (SYNTH_DESIGN.md §4.3)
 
         if( prog )
         {

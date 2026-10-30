@@ -33,6 +33,7 @@
 
 // Module source files...
 #include "synth/drum_voice.cpp"
+#include "synth/synth_voice.cpp"
 #include "synth/iSynthObject.cpp"
 #include "synth/iSynthVoice.cpp"
 
@@ -41,12 +42,14 @@
 #include "synth/audioProgram.cpp"
 #include "synth/clipProgram.cpp"
 #include "synth/DrumProgram.cpp"
+#include "synth/SynthProgram.cpp"
 #include "synth/KeygroupProgram.cpp"
 
 #include "source/mt_audio_iprogram.cpp"
 #include "source/mt_audio_common_program.cpp"
 
 #include "source/mt_audio_drum_program.cpp"
+#include "source/mt_audio_synth_program.cpp"
 #include "source/mt_audio_clip_program.cpp"
 #include "source/mt_audio_keygroup_program.cpp"
 #include "source/mt_audio_midi_program.cpp"

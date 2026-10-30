@@ -6,6 +6,8 @@ add_subdirectory(kick_gui)
 add_subdirectory(kick_audio_engine)
 add_subdirectory(kick_main)
 add_subdirectory(kick_audio_model)
+add_subdirectory(synth_harness)
+# ^ ElfKick addition: offline synth render harness (SYNTH_DESIGN.md Step 2)
 
 set(KICK_TESTS  False)
 

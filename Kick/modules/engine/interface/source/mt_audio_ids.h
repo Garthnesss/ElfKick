@@ -83,6 +83,14 @@ namespace mt
         DECLARE_ID( sustain )
         DECLARE_ID( release )
 
+        // ElfKick: synth program subtree (SYNTH_DESIGN.md §6)
+        DECLARE_ID( SYNTH )
+        DECLARE_ID( OSC )
+        DECLARE_ID( wave )
+        DECLARE_ID( width )
+        DECLARE_ID( glide )
+        DECLARE_ID( spread )
+
         DECLARE_ID( COLOURS )
         DECLARE_ID( mode )
         DECLARE_ID( emptyColourmode )

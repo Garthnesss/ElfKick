@@ -49,16 +49,19 @@
 
     // Module include files...
     #include "source/mt_audio_iprogram.h"
+    #include "source/mt_audio_synth_atomics.h" // ElfKick addition
 
     #include "synth/audioPreview.h"
     #include "synth/metronome.h"
     #include "synth/audioProgram.h"
     #include "synth/clipProgram.h"
     #include "synth/drumProgram.h"
+    #include "synth/synthProgram.h" // ElfKick addition
     #include "synth/keygroupProgram.h"
 
     #include "source/mt_audio_common_program.h"
     #include "source/mt_audio_drum_program.h"
+    #include "source/mt_audio_synth_program.h" // ElfKick addition
     #include "source/mt_audio_clip_program.h"
     #include "source/mt_audio_keygroup_program.h"
     #include "source/mt_audio_midi_program.h"

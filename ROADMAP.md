@@ -83,6 +83,14 @@ reproduces its layout and runtime. Two deliverable lines:
       program + synthesised kick.wav; AudIO drum voices are sample
       playback, so the "synth voice" is a generated sample). It loads
       and triggers (Phase 3 gate evidence).
+- [x] A first NEW INSTRUMENT as content — done Oct 30, 2026:
+      the Oberheim-architecture 3-osc poly synth (new program type
+      Synth = 8) + the ElfSynth01 project generator
+      (`scripts/make_synth_project.py`). Design: SYNTH_DESIGN.md;
+      build record with per-step gates: SYNTH_BUILD_LOG.md. Loads
+      and plays in the real runtime; sustain proven from captured
+      engine PCM. (Garth directed this build Oct 29, ahead of the
+      "explicitly later" instrument note below.)
 - Gate: the stock GUI loads our project, and (with the Phase 3 input
   fix in) a simulator pad press triggers a voice — meter/log evidence
   on this sound-card-less VM, ears when hardware exists.

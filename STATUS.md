@@ -1,10 +1,33 @@
 # ElfKick — Status
 
-**Last updated:** 2026-10-29 (Phase 3 COMPLETE; web panel bridged)
+**Last updated:** 2026-10-30 (3-osc poly synth BUILT + proven in-rig)
 **Phase:** 1 mostly done, 2 DONE, 3 **COMPLETE** — system runs
 together, pad press triggers a voice, and Garth's web panel drives
 the real runtime (see below). Repo created by Garth
 (Garthnesss/ElfKick, public).
+
+## Oberheim-style 3-osc poly synth — BUILT (Oct 30, 2026)
+First tranche of SYNTH_DESIGN.md is complete (full record:
+`SYNTH_BUILD_LOG.md`). A NEW program type **Synth = 8** registered
+across the tree (Step 0 audit: 287 consumers checked, hazards
+H1–H5 handled): `MTSynthProgram`/`SynthProgram`/`SynthVoice` mirror
+the Drum pair — 3 × PolyBLEP oscillators (the one written component;
+Step 1 harness 16/16) → per-voice TPT SVF → stock AHDSR envelopes,
+16 voices with retrigger/free/steal allocation. Offline render proof
+14/14 (Step 2); all app targets build green (Step 3);
+**ElfSynth01** (`scripts/make_synth_project.py`: "Elf Synth",
+semi=36, C–F–G–Am demo pattern) loads in the real runtime with its
+identity intact, and the app's own re-save preserves the SYNTH
+subtree **byte-identical** (Step 4). In-rig (Step 6): drum
+non-regression PASS; synth pad attack PASS; **sustain proven from
+the engine's rendered PCM** (3.0 s hold → RMS 0.103–0.141 for the
+whole gate, `rig-captures/synth-hold-3s.wav`) — the GUI meters
+decay on constant input and cannot judge held notes. One stock rig
+limitation: sequence playback emits no program output in this
+headless rig for ANY program (drums included), so the demo pattern
+loads and round-trips but cannot be heard playing here. v1
+exclusions stand (no GUI editor page, no sync/FM, key-tracking 0);
+follow-ups in SYNTH_BUILD_LOG.md.
 
 ## Web panel front end — BRIDGED + VERIFIED (Oct 29, 2026)
 Garth's groovebox panel (vendored in `panel/`, his design) is now a

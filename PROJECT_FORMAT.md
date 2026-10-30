@@ -349,3 +349,18 @@ Deliberately omitted (all auto-created/defaulted on load):
 `INSERTS`, `SPLAY`/`SMUTE`, `SLICE` children under `FILE`, the
 sequence's `.mid` pattern file, and every `CachedValue` attribute not
 listed above.
+
+## Re-save behaviour (observed Oct 30, 2026)
+
+Loading a project and later switching away (or exiting) makes the
+app rewrite the `.kickPrj` in normalised form — files grow
+(ElfTest01 3,608 → ~6.4 KB; ElfSynth01 1,351 → 2,290 B) as stock
+subtrees are materialised. Unknown-to-stock subtrees survive:
+ElfSynth01's custom `<SYNTH>` block (and its `<ENVELOPE>`/`<LFO>`)
+came through the rewrite **byte-identical**, program type intact —
+the loader/saver round-trips foreign XML under PROGRAM without
+understanding it. Patterns are re-serialised too: the demo
+`Sequence 01.mid` grew 156 → 296 B in JUCE MidiFile writer form,
+content intact. Practical consequence: a generated project is a
+valid seed, but the golden reference for "what the app saves" is a
+post-load rewrite, not the generated file.

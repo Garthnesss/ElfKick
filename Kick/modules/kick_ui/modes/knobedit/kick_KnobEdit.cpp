@@ -93,6 +93,7 @@ namespace kick_ui
             case mt::MTProgramType::Clip: return "Clip Program"; break;
             case mt::MTProgramType::Plugin: return "Plugin Program"; break;
             case mt::MTProgramType::Cv: return "CV Program"; break;
+            case mt::MTProgramType::Synth: return "Synth Program"; break; // ElfKick addition
             case mt::MTProgramType::Unknown: return "Unknown Program"; break;
             default: return "Unknown Program"; break;
         }
