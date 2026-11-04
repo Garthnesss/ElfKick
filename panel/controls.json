@@ -1,0 +1,1641 @@
+{
+ "_source": "Single source of truth for the ElfKick web panel's control map. Authored Oct 30, 2026 by extracting the live sources (bridge.py tables, Kick/modules/contracts/dcl/dcl_contracts.h enums, build.py layout, template.html handlers, bridge.js forwarding); from then on it is hand-maintained and panel/test_controls.py fails the moment any of those sources and this file disagree. Pattern lifted from orrpunk-art/virtual-mpc-sample panel/controls.json (MIT) \u2014 see ../VIRTUAL_MPC_STUDY.md lift #1.",
+ "_comment": "Frame = the CPktMgr frame the bridge must put on the pty wire. pkt_type/cmd are the PktMgr type and command bytes; wire framing (MT header, size, CRC-8, trailing newline) is bridge.py build_frame/send_hw. state = 1 pressed / 0 released. 'gap' marks every control that intentionally has no live frame, with the reason \u2014 an unmapped control WITHOUT a gap entry fails the selftest.",
+ "pkt_types": {
+  "SYSTEM": 0,
+  "BUTTON": 1,
+  "LED": 2,
+  "PAD": 3,
+  "KNOBS": 4,
+  "MIDI": 5,
+  "CV": 6,
+  "SLIDER": 7
+ },
+ "controls": [
+  {
+   "id": "button-a",
+   "kind": "button",
+   "page_id": "A",
+   "page": {
+    "element": "#btn-A",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    0,
+    4
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 0,
+    "code_name": "EN_BANK_A",
+    "code_shifted": 4,
+    "code_name_shifted": "EN_BANK_E"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-b",
+   "kind": "button",
+   "page_id": "B",
+   "page": {
+    "element": "#btn-B",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    1,
+    5
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 1,
+    "code_name": "EN_BANK_B",
+    "code_shifted": 5,
+    "code_name_shifted": "EN_BANK_F"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-c",
+   "kind": "button",
+   "page_id": "C",
+   "page": {
+    "element": "#btn-C",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    2,
+    6
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 2,
+    "code_name": "EN_BANK_C",
+    "code_shifted": 6,
+    "code_name_shifted": "EN_BANK_G"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-d",
+   "kind": "button",
+   "page_id": "D",
+   "page": {
+    "element": "#btn-D",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    3,
+    7
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 3,
+    "code_name": "EN_BANK_D",
+    "code_shifted": 7,
+    "code_name_shifted": "EN_BANK_H"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-main",
+   "kind": "button",
+   "page_id": "MAIN",
+   "page": {
+    "element": "#btn-MAIN",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    8,
+    9
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 8,
+    "code_name": "EN_MAINMODE",
+    "code_shifted": 9,
+    "code_name_shifted": "EN_GRID"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-browse",
+   "kind": "button",
+   "page_id": "BROWSE",
+   "page": {
+    "element": "#btn-BROWSE",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    10,
+    11
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 10,
+    "code_name": "EN_BROWSE",
+    "code_shifted": 11,
+    "code_name_shifted": "EN_SAVE"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-track-mix",
+   "kind": "button",
+   "page_id": "TRACK_MIX",
+   "page": {
+    "element": "#btn-TRACK_MIX",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    12,
+    13
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 12,
+    "code_name": "EN_TRACK_MIX",
+    "code_shifted": 13,
+    "code_name_shifted": "EN_PAD_MIX"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-track-mute",
+   "kind": "button",
+   "page_id": "TRACK_MUTE",
+   "page": {
+    "element": "#btn-TRACK_MUTE",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    14,
+    15
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 14,
+    "code_name": "EN_TRACK_MUTE",
+    "code_shifted": 15,
+    "code_name_shifted": "EN_PAD_MUTE"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-next-seq",
+   "kind": "button",
+   "page_id": "NEXT_SEQ",
+   "page": {
+    "element": "#btn-NEXT_SEQ",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    16,
+    17
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 16,
+    "code_name": "EN_NEXT_SEQ",
+    "code_shifted": 17,
+    "code_name_shifted": "EN_FX"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-tap-tempo",
+   "kind": "button",
+   "page_id": "TAP_TEMPO",
+   "page": {
+    "element": "#btn-TAP_TEMPO",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    18,
+    19
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 18,
+    "code_name": "EN_TAP_TEMPO",
+    "code_shifted": 19,
+    "code_name_shifted": "EN_MASTER"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-menu",
+   "kind": "button",
+   "page_id": "MENU",
+   "page": {
+    "element": "#btn-MENU",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    22,
+    23
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 22,
+    "code_name": "EN_MENU",
+    "code_shifted": 23,
+    "code_name_shifted": "EN_PREF"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-note-repeat",
+   "kind": "button",
+   "page_id": "NOTE_REPEAT",
+   "page": {
+    "element": "#btn-NOTE_REPEAT",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    24,
+    25
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 24,
+    "code_name": "EN_NOTE_REPEAT",
+    "code_shifted": 25,
+    "code_name_shifted": "EN_LATCH"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-shift",
+   "kind": "button",
+   "page_id": "SHIFT",
+   "page": {
+    "element": "#btn-SHIFT",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    31
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 31,
+    "code_name": "EN_SHIFT"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   },
+   "notes": "SHIFT itself sends EN_SHIFT; while held, every other button's shifted code is sent instead (the MCU's job on the real panel, mirrored by the bridge)."
+  },
+  {
+   "id": "button-step-seq",
+   "kind": "button",
+   "page_id": "STEP_SEQ",
+   "page": {
+    "element": "#btn-STEP_SEQ",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    32,
+    33
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 32,
+    "code_name": "EN_STEP_SEQ",
+    "code_shifted": 33,
+    "code_name_shifted": "EN_AUTOMATION"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-tc",
+   "kind": "button",
+   "page_id": "TC",
+   "page": {
+    "element": "#btn-TC",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    34,
+    35
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 34,
+    "code_name": "EN_TC",
+    "code_shifted": 35,
+    "code_name_shifted": "EN_ON_OFF"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-sampler",
+   "kind": "button",
+   "page_id": "SAMPLER",
+   "page": {
+    "element": "#btn-SAMPLER",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    36,
+    37
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 36,
+    "code_name": "EN_SAMPLER",
+    "code_shifted": 37,
+    "code_name_shifted": "EN_LOOPER"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-sample-edit",
+   "kind": "button",
+   "page_id": "SAMPLE_EDIT",
+   "page": {
+    "element": "#btn-SAMPLE_EDIT",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    38,
+    39
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 38,
+    "code_name": "EN_SAMPLE_EDIT",
+    "code_shifted": 39,
+    "code_name_shifted": "EN_LINK_EDIT"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-prog-edit",
+   "kind": "button",
+   "page_id": "PROG_EDIT",
+   "page": {
+    "element": "#btn-PROG_EDIT",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    40,
+    41
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 40,
+    "code_name": "EN_PROG_EDIT",
+    "code_shifted": 41,
+    "code_name_shifted": "EN_MIDI_CONTROL"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-full-level",
+   "kind": "button",
+   "page_id": "FULL_LEVEL",
+   "page": {
+    "element": "#btn-FULL_LEVEL",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    48,
+    49
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 48,
+    "code_name": "EN_FULL_LEVEL"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-16-levels",
+   "kind": "button",
+   "page_id": "16_LEVELS",
+   "page": {
+    "element": "#btn-16_LEVELS",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    50
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 50,
+    "code_name": "EN_16LEVELS"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-erase",
+   "kind": "button",
+   "page_id": "ERASE",
+   "page": {
+    "element": "#btn-ERASE",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    52
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 52,
+    "code_name": "EN_ERASE"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-input",
+   "kind": "button",
+   "page_id": "INPUT",
+   "page": {
+    "element": "#btn-INPUT",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [],
+   "frame": null,
+   "bridge": null,
+   "gap": {
+    "status": "known-gap",
+    "reason": "No runtime counterpart exists in BtnLedSequence or anywhere in the stock tree (panel README: the button's function is a guess). Page-local only: buttonDown('INPUT') cycles the four .in-led selector LEDs in the SVG. bridge.py logs 'no runtime counterpart \u2014 not sent'."
+   }
+  },
+  {
+   "id": "button-cur-up",
+   "kind": "button",
+   "page_id": "CUR_UP",
+   "page": {
+    "element": "#btn-CUR_UP",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button",
+    "also_emits": "jog"
+   },
+   "led_codes": [],
+   "frame": null,
+   "via": "jog",
+   "bridge": {
+    "handler": "on_button() drops the CUR_* button frame (retired EN_PLUS/EN_MINUS + CW/CCW translations); the step travels as the jog rotary frame"
+   },
+   "gap": {
+    "status": "by-design",
+    "reason": "No BtnLedSequence code exists for cursor-ring keys. buttonDown() in template.html calls jogStep(+1) on press, so a ring press produces exactly one jog detent (KNOBS/EN_KNOB_ROTARY frame). The 'button' WS message for CUR_* is intentionally dropped by the bridge."
+   }
+  },
+  {
+   "id": "button-cur-right",
+   "kind": "button",
+   "page_id": "CUR_RIGHT",
+   "page": {
+    "element": "#btn-CUR_RIGHT",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button",
+    "also_emits": "jog"
+   },
+   "led_codes": [],
+   "frame": null,
+   "via": "jog",
+   "bridge": {
+    "handler": "on_button() drops the CUR_* button frame (retired EN_PLUS/EN_MINUS + CW/CCW translations); the step travels as the jog rotary frame"
+   },
+   "gap": {
+    "status": "by-design",
+    "reason": "No BtnLedSequence code exists for cursor-ring keys. buttonDown() in template.html calls jogStep(+1) on press, so a ring press produces exactly one jog detent (KNOBS/EN_KNOB_ROTARY frame). The 'button' WS message for CUR_* is intentionally dropped by the bridge."
+   }
+  },
+  {
+   "id": "button-cur-down",
+   "kind": "button",
+   "page_id": "CUR_DOWN",
+   "page": {
+    "element": "#btn-CUR_DOWN",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button",
+    "also_emits": "jog"
+   },
+   "led_codes": [],
+   "frame": null,
+   "via": "jog",
+   "bridge": {
+    "handler": "on_button() drops the CUR_* button frame (retired EN_PLUS/EN_MINUS + CW/CCW translations); the step travels as the jog rotary frame"
+   },
+   "gap": {
+    "status": "by-design",
+    "reason": "No BtnLedSequence code exists for cursor-ring keys. buttonDown() in template.html calls jogStep(-1) on press, so a ring press produces exactly one jog detent (KNOBS/EN_KNOB_ROTARY frame). The 'button' WS message for CUR_* is intentionally dropped by the bridge."
+   }
+  },
+  {
+   "id": "button-cur-left",
+   "kind": "button",
+   "page_id": "CUR_LEFT",
+   "page": {
+    "element": "#btn-CUR_LEFT",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button",
+    "also_emits": "jog"
+   },
+   "led_codes": [],
+   "frame": null,
+   "via": "jog",
+   "bridge": {
+    "handler": "on_button() drops the CUR_* button frame (retired EN_PLUS/EN_MINUS + CW/CCW translations); the step travels as the jog rotary frame"
+   },
+   "gap": {
+    "status": "by-design",
+    "reason": "No BtnLedSequence code exists for cursor-ring keys. buttonDown() in template.html calls jogStep(-1) on press, so a ring press produces exactly one jog detent (KNOBS/EN_KNOB_ROTARY frame). The 'button' WS message for CUR_* is intentionally dropped by the bridge."
+   }
+  },
+  {
+   "id": "button-rec",
+   "kind": "button",
+   "page_id": "REC",
+   "page": {
+    "element": "#btn-REC",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    42
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 42,
+    "code_name": "EN_RECORD"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-overdub",
+   "kind": "button",
+   "page_id": "OVERDUB",
+   "page": {
+    "element": "#btn-OVERDUB",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    43
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 43,
+    "code_name": "EN_OVERDUB"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-stop",
+   "kind": "button",
+   "page_id": "STOP",
+   "page": {
+    "element": "#btn-STOP",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    44
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 44,
+    "code_name": "EN_STOP"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-play",
+   "kind": "button",
+   "page_id": "PLAY",
+   "page": {
+    "element": "#btn-PLAY",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    45
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 45,
+    "code_name": "EN_PLAY"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "button-play-start",
+   "kind": "button",
+   "page_id": "PLAY_START",
+   "page": {
+    "element": "#btn-PLAY_START",
+    "data_ctl": "button",
+    "handler": "buttonDown(id) / buttonUp(id) \u2014 template.html pointer, keyboard and MIDI paths all funnel here",
+    "event": "button",
+    "ws_message": "button"
+   },
+   "led_codes": [
+    46
+   ],
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[code, state]",
+    "code": 46,
+    "code_name": "EN_PLAYSTART"
+   },
+   "bridge": {
+    "handler": "on_button() in bridge.py (BUTTON_CODES, SHIFT translation tracked in Bridge.shift_held)"
+   }
+  },
+  {
+   "id": "pad-1",
+   "kind": "pad",
+   "page_id": "1",
+   "page": {
+    "element": "#pad-1",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[0, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-2",
+   "kind": "pad",
+   "page_id": "2",
+   "page": {
+    "element": "#pad-2",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[1, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-3",
+   "kind": "pad",
+   "page_id": "3",
+   "page": {
+    "element": "#pad-3",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[2, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-4",
+   "kind": "pad",
+   "page_id": "4",
+   "page": {
+    "element": "#pad-4",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[3, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-5",
+   "kind": "pad",
+   "page_id": "5",
+   "page": {
+    "element": "#pad-5",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[4, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-6",
+   "kind": "pad",
+   "page_id": "6",
+   "page": {
+    "element": "#pad-6",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[5, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-7",
+   "kind": "pad",
+   "page_id": "7",
+   "page": {
+    "element": "#pad-7",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[6, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-8",
+   "kind": "pad",
+   "page_id": "8",
+   "page": {
+    "element": "#pad-8",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[7, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-9",
+   "kind": "pad",
+   "page_id": "9",
+   "page": {
+    "element": "#pad-9",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[8, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-10",
+   "kind": "pad",
+   "page_id": "10",
+   "page": {
+    "element": "#pad-10",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[9, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-11",
+   "kind": "pad",
+   "page_id": "11",
+   "page": {
+    "element": "#pad-11",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[10, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-12",
+   "kind": "pad",
+   "page_id": "12",
+   "page": {
+    "element": "#pad-12",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[11, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-13",
+   "kind": "pad",
+   "page_id": "13",
+   "page": {
+    "element": "#pad-13",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[12, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-14",
+   "kind": "pad",
+   "page_id": "14",
+   "page": {
+    "element": "#pad-14",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[13, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-15",
+   "kind": "pad",
+   "page_id": "15",
+   "page": {
+    "element": "#pad-15",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[14, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "pad-16",
+   "kind": "pad",
+   "page_id": "16",
+   "page": {
+    "element": "#pad-16",
+    "data_ctl": "pad",
+    "handler": "padDown(n, vel) / padUp(n) \u2014 template.html; velocity from hit height (127 at top .. 20 at bottom)",
+    "event": "pad",
+    "ws_message": "pad"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'pad' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "PAD",
+    "pkt_type": 3,
+    "cmd": 0,
+    "cmd_name": "EN_PAD_STATE",
+    "data": "[15, state, velocity, 0]",
+    "data_note": "runtime pads are 0-based, panel pads 1-based (both count from bottom-left)"
+   },
+   "feedback": {
+    "inbound": "PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) -> {t:'padlight'} -> MPC.setPad(n, cssColour, level); colours are PadColourIds approximated to CSS in bridge.py PAD_COLOURS"
+   }
+  },
+  {
+   "id": "knob-p1",
+   "kind": "knob",
+   "page_id": "P1",
+   "page": {
+    "element": "#knob-P1",
+    "data_ctl": "knob",
+    "handler": "knobSet(id, v) \u2014 template.html (vertical drag, wheel, dblclick=centre)",
+    "event": "knob",
+    "ws_message": "knob"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'knob' branch in bridge.py (KNOB_CODES; absolute page value converted to relative steps vs Bridge.knob_last)"
+   },
+   "frame": {
+    "pkt": "KNOBS",
+    "pkt_type": 4,
+    "cmd": 1,
+    "cmd_name": "EN_KNOB_QLINK",
+    "data": "[code, direction, steps]",
+    "code": 0,
+    "data_note": "direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0",
+    "code_domain": "qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id \u2014 the contracts name no enum for qlink indices."
+   }
+  },
+  {
+   "id": "knob-p2",
+   "kind": "knob",
+   "page_id": "P2",
+   "page": {
+    "element": "#knob-P2",
+    "data_ctl": "knob",
+    "handler": "knobSet(id, v) \u2014 template.html (vertical drag, wheel, dblclick=centre)",
+    "event": "knob",
+    "ws_message": "knob"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'knob' branch in bridge.py (KNOB_CODES; absolute page value converted to relative steps vs Bridge.knob_last)"
+   },
+   "frame": {
+    "pkt": "KNOBS",
+    "pkt_type": 4,
+    "cmd": 1,
+    "cmd_name": "EN_KNOB_QLINK",
+    "data": "[code, direction, steps]",
+    "code": 1,
+    "data_note": "direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0",
+    "code_domain": "qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id \u2014 the contracts name no enum for qlink indices."
+   }
+  },
+  {
+   "id": "knob-p3",
+   "kind": "knob",
+   "page_id": "P3",
+   "page": {
+    "element": "#knob-P3",
+    "data_ctl": "knob",
+    "handler": "knobSet(id, v) \u2014 template.html (vertical drag, wheel, dblclick=centre)",
+    "event": "knob",
+    "ws_message": "knob"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'knob' branch in bridge.py (KNOB_CODES; absolute page value converted to relative steps vs Bridge.knob_last)"
+   },
+   "frame": {
+    "pkt": "KNOBS",
+    "pkt_type": 4,
+    "cmd": 1,
+    "cmd_name": "EN_KNOB_QLINK",
+    "data": "[code, direction, steps]",
+    "code": 2,
+    "data_note": "direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0",
+    "code_domain": "qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id \u2014 the contracts name no enum for qlink indices."
+   }
+  },
+  {
+   "id": "knob-p4",
+   "kind": "knob",
+   "page_id": "P4",
+   "page": {
+    "element": "#knob-P4",
+    "data_ctl": "knob",
+    "handler": "knobSet(id, v) \u2014 template.html (vertical drag, wheel, dblclick=centre)",
+    "event": "knob",
+    "ws_message": "knob"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'knob' branch in bridge.py (KNOB_CODES; absolute page value converted to relative steps vs Bridge.knob_last)"
+   },
+   "frame": {
+    "pkt": "KNOBS",
+    "pkt_type": 4,
+    "cmd": 1,
+    "cmd_name": "EN_KNOB_QLINK",
+    "data": "[code, direction, steps]",
+    "code": 3,
+    "data_note": "direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0",
+    "code_domain": "qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id \u2014 the contracts name no enum for qlink indices."
+   }
+  },
+  {
+   "id": "knob-master",
+   "kind": "knob",
+   "page_id": "MASTER",
+   "page": {
+    "element": "#knob-MASTER",
+    "data_ctl": "knob",
+    "handler": "knobSet(id, v) \u2014 template.html (vertical drag, wheel, dblclick=centre)",
+    "event": "knob",
+    "ws_message": "knob"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'knob' branch in bridge.py (KNOB_CODES; absolute page value converted to relative steps vs Bridge.knob_last)"
+   },
+   "frame": {
+    "pkt": "KNOBS",
+    "pkt_type": 4,
+    "cmd": 1,
+    "cmd_name": "EN_KNOB_QLINK",
+    "data": "[code, direction, steps]",
+    "code": 4,
+    "data_note": "direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0",
+    "code_domain": "qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id \u2014 the contracts name no enum for qlink indices."
+   },
+   "gap": {
+    "status": "unverified-code",
+    "reason": "No in-tree source assigns MASTER/REC a knob code; upstream's own simulator leaves both unwired. Codes 4/5 are qlink-shaped placeholders so the GUI's knob branch treats them uniformly \u2014 may be inert."
+   }
+  },
+  {
+   "id": "knob-rec",
+   "kind": "knob",
+   "page_id": "REC",
+   "page": {
+    "element": "#knob-REC",
+    "data_ctl": "knob",
+    "handler": "knobSet(id, v) \u2014 template.html (vertical drag, wheel, dblclick=centre)",
+    "event": "knob",
+    "ws_message": "knob"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'knob' branch in bridge.py (KNOB_CODES; absolute page value converted to relative steps vs Bridge.knob_last)"
+   },
+   "frame": {
+    "pkt": "KNOBS",
+    "pkt_type": 4,
+    "cmd": 1,
+    "cmd_name": "EN_KNOB_QLINK",
+    "data": "[code, direction, steps]",
+    "code": 5,
+    "data_note": "direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0",
+    "code_domain": "qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id \u2014 the contracts name no enum for qlink indices."
+   },
+   "gap": {
+    "status": "unverified-code",
+    "reason": "No in-tree source assigns MASTER/REC a knob code; upstream's own simulator leaves both unwired. Codes 4/5 are qlink-shaped placeholders so the GUI's knob branch treats them uniformly \u2014 may be inert."
+   }
+  },
+  {
+   "id": "jog-rotate",
+   "kind": "jog-rotate",
+   "page_id": "JOG",
+   "page": {
+    "element": "#jog",
+    "data_ctl": "jog",
+    "handler": "jogStep(delta) \u2014 template.html (circular drag with 12-degree detent accumulator, wheel, [ ] keys, cursor-ring presses)",
+    "event": "jog",
+    "ws_message": "jog"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'jog' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "KNOBS",
+    "pkt_type": 4,
+    "cmd": 0,
+    "cmd_name": "EN_KNOB_ROTARY",
+    "data": "[0, direction, steps]",
+    "data_note": "data[0] = EN_KNOB_CENTER (KnobSequence 0); direction 1=CW / 0=CCW; steps = min(|delta|, 8). This rotary shape is what the runtime's screens switch on (FileBrowser::handleCommand); the older EN_KNOB_CW/CCW detent BUTTON frames were retired Oct 30, 2026."
+   }
+  },
+  {
+   "id": "jog-push",
+   "kind": "jog-push",
+   "page_id": "JOG",
+   "page": {
+    "element": "#jog",
+    "data_ctl": "jog",
+    "handler": "jogPush(down) \u2014 template.html endDrag: press+release with zero detents emitted in between (sub-detent wiggle < 12 degrees still counts as a click; a drag that stepped never confirms)",
+    "event": "jogpush",
+    "ws_message": "jogpush"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'jogpush' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "BUTTON",
+    "pkt_type": 1,
+    "cmd": 0,
+    "cmd_name": "EN_BTN_STATUS",
+    "data": "[26, state]",
+    "code": 26,
+    "code_name": "EN_KNOB_ENTER",
+    "data_note": "Despite the name this is a BtnLedSequence code on a BUTTON frame, not a KNOBS message (DclContractsHelper::isCenterKnobClickMessage). Press and release both forwarded; screens act on BTN_PRESSED."
+   }
+  },
+  {
+   "id": "strip",
+   "kind": "strip",
+   "page_id": "STRIP",
+   "page": {
+    "element": "#strip",
+    "data_ctl": "strip",
+    "handler": "stripSet(v) \u2014 template.html (drag / wheel on the strip track)",
+    "event": "strip",
+    "ws_message": "strip"
+   },
+   "bridge": {
+    "handler": "on_web_message() 'strip' branch in bridge.py"
+   },
+   "frame": {
+    "pkt": "SLIDER",
+    "pkt_type": 7,
+    "cmd": 0,
+    "cmd_name": "EN_SLIDER_TOUCH_INPUT",
+    "data": "[percent]",
+    "data_note": "percent = round(value * 100), clamped 0..100"
+   },
+   "gap": {
+    "status": "unverified-consumer",
+    "reason": "No consumer of slider input was found in kick_ui (only the contracts helper reads it); the frame is sent in the protocol's own shape and the effect is unverified \u2014 same status as upstream's sim, which emits nothing. Inbound SLIDER LED feedback (cmd 1..3) is logged only: MPC has no strip-LED API."
+   }
+  },
+  {
+   "id": "page-midi-in-select",
+   "kind": "page-chrome",
+   "page_id": "midi-in",
+   "page": {
+    "element": "#midi-in",
+    "data_ctl": null,
+    "handler": "$('#midi-in').onchange = bindInputs (template.html)",
+    "event": null,
+    "ws_message": null
+   },
+   "bridge": null,
+   "frame": null,
+   "gap": {
+    "status": "page-local",
+    "reason": "Header chrome of the web page, not a device control: acts inside the page only and by design emits no bridge message and no wire frame."
+   }
+  },
+  {
+   "id": "page-midi-learn",
+   "kind": "page-chrome",
+   "page_id": "learn",
+   "page": {
+    "element": "#learn",
+    "data_ctl": null,
+    "handler": "$('#learn').onclick toggles MIDI-learn mode (template.html)",
+    "event": null,
+    "ws_message": null
+   },
+   "bridge": null,
+   "frame": null,
+   "gap": {
+    "status": "page-local",
+    "reason": "Header chrome of the web page, not a device control: acts inside the page only and by design emits no bridge message and no wire frame."
+   }
+  },
+  {
+   "id": "page-clear-map",
+   "kind": "page-chrome",
+   "page_id": "clear-map",
+   "page": {
+    "element": "#clear-map",
+    "data_ctl": null,
+    "handler": "$('#clear-map').onclick resets the MIDI map to DEFAULT_MAP (template.html)",
+    "event": null,
+    "ws_message": null
+   },
+   "bridge": null,
+   "frame": null,
+   "gap": {
+    "status": "page-local",
+    "reason": "Header chrome of the web page, not a device control: acts inside the page only and by design emits no bridge message and no wire frame."
+   }
+  },
+  {
+   "id": "page-sound-toggle",
+   "kind": "page-chrome",
+   "page_id": "sound",
+   "page": {
+    "element": "#sound",
+    "data_ctl": null,
+    "handler": "$('#sound').onclick toggles MPC.sound, the built-in kit (template.html); bridge.js overrides the label to 'Sound: runtime' while connected",
+    "event": null,
+    "ws_message": null
+   },
+   "bridge": null,
+   "frame": null,
+   "gap": {
+    "status": "page-local",
+    "reason": "Header chrome of the web page, not a device control: acts inside the page only and by design emits no bridge message and no wire frame."
+   }
+  }
+ ],
+ "page_events_not_bridged": [
+  {
+   "event": "aftertouch",
+   "reason": "template.html re-emits Web MIDI poly aftertouch as an MPC event; bridge.js deliberately does not forward it (logged as unhandled). No panel control produces it \u2014 it only exists for external MIDI controllers."
+  }
+ ],
+ "session_messages_not_controls": [
+  {
+   "ws_message": "hello",
+   "direction": "page->bridge",
+   "reason": "bridge.js sends knob baselines on connect; bridge.py syncs Bridge.knob_last. Not a control."
+  },
+  {
+   "ws_message": "stream",
+   "direction": "both",
+   "reason": "Screen-stream subscription and its ack (bridge.js startScreen/stopScreen; bridge.py ScreenStreamer). Not a control."
+  },
+  {
+   "ws_message": "led",
+   "direction": "bridge->page",
+   "reason": "LED feedback: bridge.py broadcasts {t:'led', id, on} from LED frames via LED_CODE_TO_PANEL; bridge.js applies MPC.setLed."
+  },
+  {
+   "ws_message": "padlight",
+   "direction": "bridge->page",
+   "reason": "Pad feedback: bridge.py pad_light() -> {t:'padlight'}; bridge.js applies MPC.setPad."
+  },
+  {
+   "ws_message": "log",
+   "direction": "bridge->page",
+   "reason": "Bridge log lines surfaced in the page console by bridge.js."
+  },
+  {
+   "ws_message": "ready",
+   "direction": "bridge->page",
+   "reason": "Bridge greeting sent on WS connect."
+  }
+ ]
+}

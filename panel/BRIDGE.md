@@ -617,6 +617,96 @@ Garth's page session is the check; a jog click there should now
 send `jogpush` exactly as the synthetic checks show. Nothing here
 has been committed, pushed, or copied to the Mac.
 
+## Addendum (Oct 30, 2026, third) — controls.json + the page↔map selftest
+
+Virtual MPC lift #1 (see `../VIRTUAL_MPC_STUDY.md` rows 1–2): the
+control map now has a single source of truth, and a selftest that
+fails the moment the page, the glue, the bridge or the contracts
+drift away from it. This is the structural fix for this project's
+two lived failures — the dead INPUT button and the dead knob arrows
+both survived for days because nothing mechanically checked that
+every drawn control reaches a live bridge path.
+
+**`panel/controls.json`** — one entry per user-operable control:
+**60 controls** (31 buttons, 16 pads, 6 knobs, jog-rotate, jog-push,
+1 touch strip, 4 page-header chrome controls). Each entry carries a
+stable id, its kind, the page element + handler funnel
+(`padDown`, `buttonDown`, `knobSet`, `jogStep`, `jogPush`,
+`stripSet` in template.html), the MPC event and WS message it
+produces (via bridge.js), and the exact CPktMgr frame the bridge
+must emit — PktMgr type, cmd, data shape, and the contracts name of
+every code (e.g. jog-push = BUTTON/0 `[26 EN_KNOB_ENTER, state]`,
+jog-rotate = KNOBS/0 EN_KNOB_ROTARY `[0 EN_KNOB_CENTER, dir,
+steps]`, knobs = KNOBS/1 EN_KNOB_QLINK with a qlink index — knob
+codes are *not* BtnLedSequence codes and are recorded as such).
+Buttons also record their shifted code and the LED codes whose
+feedback folds onto them. Session/feedback WS messages that are not
+controls (`hello`, `stream`, `led`, `padlight`, `log`, `ready`)
+and the one deliberately unbridged page event (`aftertouch`) are
+declared in the manifest too, so "unclaimed" always means "wrong".
+
+**Generated vs checked — checked, deliberately.** Nothing at
+runtime or build time is generated from controls.json: bridge.py
+keeps its own tables, bridge.js and template.html are untouched,
+and `build.py` still regenerates `index.html`/`panel.svg`
+byte-identically (verified). The manifest was *authored* by
+extracting those sources (bridge.py tables via AST,
+`dcl_contracts.h` enums, build.py layout), and from now on it is
+hand-maintained with the selftest enforcing equality. Deriving the
+bridge's tables from the JSON would mean rewriting a working,
+in-rig-proven dispatch for no behavioural gain; drift — the actual
+failure mode — is fully covered by the checks below.
+
+**`panel/test_controls.py`** — run it like the other checks:
+
+```
+python3 test_controls.py     # exit 0 = map is consistent
+```
+
+Eight check groups, both directions: (1) manifest schema — unique
+ids, required fields, and **every frameless control must carry a
+`gap` entry explaining why**; (2) page ↔ manifest — the built
+page's `data-ctl` set equals the manifest's; (3) page handlers —
+the funnels exist and the manifest's event set equals the set
+template.html actually emits; (4) bridge.js forwarding — every
+control event is forwarded to the manifest's WS message, every
+forward is claimed; (5) bridge.py dispatch — every WS message has
+a handler branch, every branch is claimed; (6) bridge.py tables —
+`BUTTON_CODES`, `KNOB_CODES`, `EN_KNOB_ENTER`, `LED_CODE_TO_PANEL`
+equal the manifest exactly; (7) frame shapes — every manifest
+(pkt, cmd) pair is a real `send_hw` call in bridge.py and vice
+versa; (8) contracts — every named code matches
+`dcl_contracts.h`'s `BtnLedSequence`, and the enum anchors
+(EN_KNOB_CENTER=0, EN_KNOB_ROTARY/QLINK=0/1, EN_PAD_STATE=0,
+EN_SLIDER_TOUCH_INPUT=0) are unchanged. Failures print a named
+list, never a bare assert. Negative-tested while landing: removing
+BROWSE from the manifest, corrupting PLAY's code 45→44, and
+stripping INPUT's gap entry each fail loudly in the right groups.
+
+**Findings — no new dead controls.** Every control either maps to
+a live frame or was already a declared gap; the 12 declared
+gap/page-local entries are: INPUT (no runtime counterpart exists;
+page-local selector LEDs), the four CUR_* ring buttons (no
+BtnLedSequence codes exist; they step the jog by design and their
+button frames are deliberately dropped by the bridge), MASTER/REC
+knob codes 4/5 (unverified qlink placeholders, as before), the
+strip (frame sent in protocol shape, no consumer found in
+kick_ui), and the four header chrome controls (page-local by
+design). One **documentation** drift found and flagged, not
+silently fixed: the Oct 29 "Mapping" table above still shows the
+retired CUR_UP/CUR_DOWN → EN_PLUS/EN_MINUS and jog → EN_KNOB_CW/CCW
+translations; the Oct 30 addenda and bridge.py supersede them, and
+controls.json follows the code. The table wants a doc pass.
+
+**Verification (this session):** selftest 8/8 groups PASS on the
+current tree; stub-DOM checks 19/19; `build.py` regeneration
+byte-identical; protocol client against the live rig — pad 1
+(press/release with real padlight feedback), BROWSE (PASS: LED on),
+jogpush, stream (PASS) — and the bridge log shows the wire bytes
+the manifest promises (jog push down = BUTTON frame data
+`[26, 1]`). Panel behaviour unchanged: this tranche adds one JSON
+file, one test file, and this addendum only.
+
 ## Follow-ons (designed, not built)
 - **Browser-level click verification** once a runnable browser
   exists on the VM (any Chromium/Firefox): load the served page,
