@@ -150,78 +150,115 @@ a button press emits the shifted code. SHIFT itself emits
 `EN_SHIFT (31)` press/release (the serial path also tracks it in
 `shiftBtnState`, `input_events.cpp`).
 
-| Panel event | Runtime packet | Notes |
-|---|---|---|
-| pad n ↓ (vel v) | PAD/0 `[n−1, 1, v, 0]` | state = BTN_PRESSED |
-| pad n ↑ | PAD/0 `[n−1, 0, 0, 0]` | |
-| button MAIN | BUTTON/0 `[8, state]` | shift → GRID `[9, …]` |
-| button BROWSE | BUTTON/0 `[10, state]` | shift → SAVE `[11, …]` |
-| button TRACK_MIX | `[12, …]` | shift → PAD_MIX `[13, …]` |
-| button TRACK_MUTE | `[14, …]` | shift → PAD_MUTE `[15, …]` |
-| button NEXT_SEQ | `[16, …]` | shift → FX `[17, …]` |
-| button TAP_TEMPO | `[18, …]` | shift → MASTER `[19, …]` |
-| button MENU | `[22, …]` | shift → PREF `[23, …]` |
-| button NOTE_REPEAT | `[24, …]` | shift → LATCH `[25, …]` |
-| button STEP_SEQ | `[32, …]` | shift → AUTOMATION `[33, …]` |
-| button TC | `[34, …]` | shift → ON_OFF `[35, …]` |
-| button SAMPLER | `[36, …]` | shift → LOOPER `[37, …]` |
-| button SAMPLE_EDIT | `[38, …]` | shift → LINK_EDIT `[39, …]` |
-| button PROG_EDIT | `[40, …]` | shift → MIDI_CONTROL `[41, …]` |
-| button A/B/C/D | `[0..3, …]` | shift → BANK_E..H `[4..7, …]` |
-| button SHIFT | `[31, state]` | also drives the translation above |
-| button FULL_LEVEL | `[48, state]` | runtime also answers with its LED frame |
-| button 16_LEVELS | `[50, state]` | id is `16_LEVELS` in the panel, `EN_16LEVELS` in contracts |
-| button ERASE | `[52, state]` | |
-| button REC / OVERDUB / STOP / PLAY / PLAY_START | `[42/43/44/45/46, state]` | |
-| button CUR_RIGHT / CUR_LEFT | jog detent ±1 (below) | ⚠ no BtnLedSequence counterpart — see gaps |
-| button CUR_UP / CUR_DOWN | BUTTON/0 `[21 EN_PLUS / 27 EN_MINUS, state]` | ⚠ approximation — see gaps |
-| button INPUT | — | ⚠ **no runtime counterpart** (panel README: its function is a guess). Emits nothing; logged. |
-| jog delta ±1 | BUTTON/0 `[30 EN_KNOB_CW / 28 EN_KNOB_CCW, 1]` per detent | the shape the screens actually switch on (`kick_AppGrid.cpp:513`, step sequencer) and the sim emits; a KNOBS/EN_KNOB_ROTARY center-knob shape also exists in contracts but is not what the screens key on |
-| jog click (press, no rotate) | BUTTON/0 `[26 EN_KNOB_ENTER, 1]` then `[26, 0]` | added Oct 30 (second addendum): EN_KNOB_ENTER is a BtnLedSequence code on a BUTTON frame — `isCenterKnobClickMessage` in the contracts helper; FileBrowser `knobClicked()`, RecentProject open, AppAssignSample all switch on it that way |
-| knob P1..P4 (absolute 0..1) | KNOBS/1 `[idx 0..3, dir, steps]` | runtime knobs are relative encoders; bridge keeps last value per knob, steps = round(Δ × 127) (sim qlink scale), one packet per change |
-| knob MASTER / REC (absolute 0..1) | KNOBS/1 `[4 / 5, dir, steps]` | ⚠ **unverified codes** — no in-tree source assigns MASTER/REC knob codes (upstream's own sim leaves both unwired); qlink-shaped so the GUI's knob branch treats them uniformly. Flagged, may be inert. |
-| strip value 0..1 | SLIDER/0 `[round(v × 100)]` | ⚠ no consumer of slider *input* found in kick_ui (only the contracts helper reads it); sent in the protocol's own shape, effect unverified — same status as upstream's sim, whose strip emits nothing at all |
-| (bridge, on DCL connect) | SYSTEM/4 `[1]` | comm-init announce, mirroring the MCU; the GUI answers with a SYSTEM/2 frame down the wire — a free both-directions handshake check |
+**This table was corrected Oct 30, 2026 (EK-7, fifth addendum below).** The original Oct 29 table predated the Oct 30 encoder-dialect fix, the EN_KNOB_ENTER wiring, the controls.json manifest and the health dots, and had gone stale against all four. The table below is generated from `panel/controls.json` — the manifest is the single source of truth (guarded by `test_controls.py`) — and lists **every** manifest control: 65 rows, gaps included as rows with their declared status and reason, never silently omitted. If this table and the manifest ever disagree, the manifest wins and the table is regenerated.
+
+Panel → runtime (forward):
+
+| Control (manifest id) | Page event → WS message | Runtime frame (CPktMgr) | Notes |
+|---|---|---|---|
+| `button-a` — button A | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[0, state]`; code 0 = `EN_BANK_A`; SHIFT held → code 4 = `EN_BANK_E` | LED feedback code(s): 0, 4. |
+| `button-b` — button B | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[1, state]`; code 1 = `EN_BANK_B`; SHIFT held → code 5 = `EN_BANK_F` | LED feedback code(s): 1, 5. |
+| `button-c` — button C | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[2, state]`; code 2 = `EN_BANK_C`; SHIFT held → code 6 = `EN_BANK_G` | LED feedback code(s): 2, 6. |
+| `button-d` — button D | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[3, state]`; code 3 = `EN_BANK_D`; SHIFT held → code 7 = `EN_BANK_H` | LED feedback code(s): 3, 7. |
+| `button-main` — button MAIN | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[8, state]`; code 8 = `EN_MAINMODE`; SHIFT held → code 9 = `EN_GRID` | LED feedback code(s): 8, 9. |
+| `button-browse` — button BROWSE | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[10, state]`; code 10 = `EN_BROWSE`; SHIFT held → code 11 = `EN_SAVE` | LED feedback code(s): 10, 11. |
+| `button-track-mix` — button TRACK_MIX | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[12, state]`; code 12 = `EN_TRACK_MIX`; SHIFT held → code 13 = `EN_PAD_MIX` | LED feedback code(s): 12, 13. |
+| `button-track-mute` — button TRACK_MUTE | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[14, state]`; code 14 = `EN_TRACK_MUTE`; SHIFT held → code 15 = `EN_PAD_MUTE` | LED feedback code(s): 14, 15. |
+| `button-next-seq` — button NEXT_SEQ | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[16, state]`; code 16 = `EN_NEXT_SEQ`; SHIFT held → code 17 = `EN_FX` | LED feedback code(s): 16, 17. |
+| `button-tap-tempo` — button TAP_TEMPO | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[18, state]`; code 18 = `EN_TAP_TEMPO`; SHIFT held → code 19 = `EN_MASTER` | LED feedback code(s): 18, 19. |
+| `button-menu` — button MENU | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[22, state]`; code 22 = `EN_MENU`; SHIFT held → code 23 = `EN_PREF` | LED feedback code(s): 22, 23. |
+| `button-note-repeat` — button NOTE_REPEAT | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[24, state]`; code 24 = `EN_NOTE_REPEAT`; SHIFT held → code 25 = `EN_LATCH` | LED feedback code(s): 24, 25. |
+| `button-shift` — button SHIFT | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[31, state]`; code 31 = `EN_SHIFT` | LED feedback code(s): 31. SHIFT itself sends EN_SHIFT; while held, every other button's shifted code is sent instead (the MCU's job on the real panel, mirrored by the bridge). |
+| `button-step-seq` — button STEP_SEQ | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[32, state]`; code 32 = `EN_STEP_SEQ`; SHIFT held → code 33 = `EN_AUTOMATION` | LED feedback code(s): 32, 33. |
+| `button-tc` — button TC | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[34, state]`; code 34 = `EN_TC`; SHIFT held → code 35 = `EN_ON_OFF` | LED feedback code(s): 34, 35. |
+| `button-sampler` — button SAMPLER | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[36, state]`; code 36 = `EN_SAMPLER`; SHIFT held → code 37 = `EN_LOOPER` | LED feedback code(s): 36, 37. |
+| `button-sample-edit` — button SAMPLE_EDIT | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[38, state]`; code 38 = `EN_SAMPLE_EDIT`; SHIFT held → code 39 = `EN_LINK_EDIT` | LED feedback code(s): 38, 39. |
+| `button-prog-edit` — button PROG_EDIT | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[40, state]`; code 40 = `EN_PROG_EDIT`; SHIFT held → code 41 = `EN_MIDI_CONTROL` | LED feedback code(s): 40, 41. |
+| `button-full-level` — button FULL_LEVEL | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[48, state]`; code 48 = `EN_FULL_LEVEL` | LED feedback code(s): 48, 49. |
+| `button-16-levels` — button 16_LEVELS | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[50, state]`; code 50 = `EN_16LEVELS` | LED feedback code(s): 50. |
+| `button-erase` — button ERASE | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[52, state]`; code 52 = `EN_ERASE` | LED feedback code(s): 52. |
+| `button-input` — button INPUT | `button` → WS `button` | — **no frame** — | ⚠ **gap — known-gap**: No runtime counterpart exists in BtnLedSequence or anywhere in the stock tree (panel README: the button's function is a guess). Page-local only: buttonDown('INPUT') cycles the four .in-led selector LEDs in the SVG. bridge.py logs 'no runtime counterpart — not sent'. |
+| `button-cur-up` — button CUR_UP | `button` → WS `button` (+ also emits `jog`) | — **no frame** — | ⚠ **gap — by-design**: No BtnLedSequence code exists for cursor-ring keys. buttonDown() in template.html calls jogStep(+1) on press, so a ring press produces exactly one jog detent (KNOBS/EN_KNOB_ROTARY frame). The 'button' WS message for CUR_* is intentionally dropped by the bridge. |
+| `button-cur-right` — button CUR_RIGHT | `button` → WS `button` (+ also emits `jog`) | — **no frame** — | ⚠ **gap — by-design**: No BtnLedSequence code exists for cursor-ring keys. buttonDown() in template.html calls jogStep(+1) on press, so a ring press produces exactly one jog detent (KNOBS/EN_KNOB_ROTARY frame). The 'button' WS message for CUR_* is intentionally dropped by the bridge. |
+| `button-cur-down` — button CUR_DOWN | `button` → WS `button` (+ also emits `jog`) | — **no frame** — | ⚠ **gap — by-design**: No BtnLedSequence code exists for cursor-ring keys. buttonDown() in template.html calls jogStep(-1) on press, so a ring press produces exactly one jog detent (KNOBS/EN_KNOB_ROTARY frame). The 'button' WS message for CUR_* is intentionally dropped by the bridge. |
+| `button-cur-left` — button CUR_LEFT | `button` → WS `button` (+ also emits `jog`) | — **no frame** — | ⚠ **gap — by-design**: No BtnLedSequence code exists for cursor-ring keys. buttonDown() in template.html calls jogStep(-1) on press, so a ring press produces exactly one jog detent (KNOBS/EN_KNOB_ROTARY frame). The 'button' WS message for CUR_* is intentionally dropped by the bridge. |
+| `button-rec` — button REC | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[42, state]`; code 42 = `EN_RECORD` | LED feedback code(s): 42. |
+| `button-overdub` — button OVERDUB | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[43, state]`; code 43 = `EN_OVERDUB` | LED feedback code(s): 43. |
+| `button-stop` — button STOP | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[44, state]`; code 44 = `EN_STOP` | LED feedback code(s): 44. |
+| `button-play` — button PLAY | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[45, state]`; code 45 = `EN_PLAY` | LED feedback code(s): 45. |
+| `button-play-start` — button PLAY_START | `button` → WS `button` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[46, state]`; code 46 = `EN_PLAYSTART` | LED feedback code(s): 46. |
+| `pad-1` — pad 1 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[0, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-2` — pad 2 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[1, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-3` — pad 3 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[2, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-4` — pad 4 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[3, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-5` — pad 5 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[4, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-6` — pad 6 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[5, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-7` — pad 7 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[6, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-8` — pad 8 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[7, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-9` — pad 9 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[8, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-10` — pad 10 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[9, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-11` — pad 11 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[10, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-12` — pad 12 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[11, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-13` — pad 13 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[12, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-14` — pad 14 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[13, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-15` — pad 15 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[14, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `pad-16` — pad 16 | `pad` → WS `pad` | `PAD` cmd 0 `EN_PAD_STATE` — data `[15, state, velocity, 0]` | runtime pads are 0-based, panel pads 1-based (both count from bottom-left) Velocity from hit height (127 at top .. 20 at bottom). Feedback: PAD cmd 1/2/5/8 → WS `padlight` (feedback table below). |
+| `knob-p1` — knob P1 | `knob` → WS `knob` | `KNOBS` cmd 1 `EN_KNOB_QLINK` — data `[0, direction, steps]` | direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0 qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id — the contracts name no enum for qlink indices. |
+| `knob-p2` — knob P2 | `knob` → WS `knob` | `KNOBS` cmd 1 `EN_KNOB_QLINK` — data `[1, direction, steps]` | direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0 qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id — the contracts name no enum for qlink indices. |
+| `knob-p3` — knob P3 | `knob` → WS `knob` | `KNOBS` cmd 1 `EN_KNOB_QLINK` — data `[2, direction, steps]` | direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0 qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id — the contracts name no enum for qlink indices. |
+| `knob-p4` — knob P4 | `knob` → WS `knob` | `KNOBS` cmd 1 `EN_KNOB_QLINK` — data `[3, direction, steps]` | direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0 qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id — the contracts name no enum for qlink indices. |
+| `knob-master` — knob MASTER | `knob` → WS `knob` | `KNOBS` cmd 1 `EN_KNOB_QLINK` — data `[4, direction, steps]` | direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0 qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id — the contracts name no enum for qlink indices. ⚠ **gap — unverified-code**: No in-tree source assigns MASTER/REC a knob code; upstream's own simulator leaves both unwired. Codes 4/5 are qlink-shaped placeholders so the GUI's knob branch treats them uniformly — may be inert. |
+| `knob-rec` — knob REC | `knob` → WS `knob` | `KNOBS` cmd 1 `EN_KNOB_QLINK` — data `[5, direction, steps]` | direction 1=CW / 0=CCW (KnobDirection); steps = round(delta * 127); no frame when steps == 0 qlink index (bridge.py KNOB_CODES). Not a BtnLedSequence code and not a KnobSequence id — the contracts name no enum for qlink indices. ⚠ **gap — unverified-code**: No in-tree source assigns MASTER/REC a knob code; upstream's own simulator leaves both unwired. Codes 4/5 are qlink-shaped placeholders so the GUI's knob branch treats them uniformly — may be inert. |
+| `jog-rotate` — jog rotate | `jog` → WS `jog` | `KNOBS` cmd 0 `EN_KNOB_ROTARY` — data `[0, direction, steps]` | data[0] = EN_KNOB_CENTER (KnobSequence 0); direction 1=CW / 0=CCW; steps = min(\|delta\|, 8). This rotary shape is what the runtime's screens switch on (FileBrowser::handleCommand); the older EN_KNOB_CW/CCW detent BUTTON frames were retired Oct 30, 2026. |
+| `jog-push` — jog push (click) | `jogpush` → WS `jogpush` | `BUTTON` cmd 0 `EN_BTN_STATUS` — data `[26, state]`; code 26 = `EN_KNOB_ENTER` | Despite the name this is a BtnLedSequence code on a BUTTON frame, not a KNOBS message (DclContractsHelper::isCenterKnobClickMessage). Press and release both forwarded; screens act on BTN_PRESSED. |
+| `strip` — touch strip | `strip` → WS `strip` | `SLIDER` cmd 0 `EN_SLIDER_TOUCH_INPUT` — data `[percent]` | percent = round(value * 100), clamped 0..100 ⚠ **gap — unverified-consumer**: No consumer of slider input was found in kick_ui (only the contracts helper reads it); the frame is sent in the protocol's own shape and the effect is unverified — same status as upstream's sim, which emits nothing. Inbound SLIDER LED feedback (cmd 1..3) is logged only: MPC has no strip-LED API. |
+| `page-midi-in-select` — page chrome `midi-in` | — (page-local; no page event, no WS message) | — **no frame** — | ⚠ **gap — page-local**: Header chrome of the web page, not a device control: acts inside the page only and by design emits no bridge message and no wire frame. |
+| `page-midi-learn` — page chrome `learn` | — (page-local; no page event, no WS message) | — **no frame** — | ⚠ **gap — page-local**: Header chrome of the web page, not a device control: acts inside the page only and by design emits no bridge message and no wire frame. |
+| `page-clear-map` — page chrome `clear-map` | — (page-local; no page event, no WS message) | — **no frame** — | ⚠ **gap — page-local**: Header chrome of the web page, not a device control: acts inside the page only and by design emits no bridge message and no wire frame. |
+| `page-sound-toggle` — page chrome `sound` | — (page-local; no page event, no WS message) | — **no frame** — | ⚠ **gap — page-local**: Header chrome of the web page, not a device control: acts inside the page only and by design emits no bridge message and no wire frame. |
+| `health-bridge-dot` — page chrome `health-bridge` | — (page-local; no page event, no WS message) | — **no frame** — | ⚠ **gap — page-local**: Health chrome (VIRTUAL_MPC_STUDY lift #3): a display dot fed by the bridge state snapshot — bridge process liveness as the page sees it: socket open/closed plus the snapshot's own bridge field (uptime, client count). It renders bridge-supplied state only; by design it emits no MPC event, no bridge message and no wire frame. |
+| `health-dcl-dot` — page chrome `health-dcl` | — (page-local; no page event, no WS message) | — **no frame** — | ⚠ **gap — page-local**: Health chrome (VIRTUAL_MPC_STUDY lift #3): a display dot fed by the bridge state snapshot — DCL/panel-MCU link: bridge 'announced' handshake flag, whether a process holds the pty slave open, and the age of the last frame received from KickDeviceControl. It renders bridge-supplied state only; by design it emits no MPC event, no bridge message and no wire frame. |
+| `health-engine-dot` — page chrome `health-engine` | — (page-local; no page event, no WS message) | — **no frame** — | ⚠ **gap — page-local**: Health chrome (VIRTUAL_MPC_STUDY lift #3): a display dot fed by the bridge state snapshot — rig process health: presence of KickMain / KickDeviceControl / KickUserInterface / KickAudioEngine / KickAudioModel in /proc, as scanned by the bridge. It renders bridge-supplied state only; by design it emits no MPC event, no bridge message and no wire frame. |
+| `health-stream-dot` — page chrome `health-stream` | — (page-local; no page event, no WS message) | — **no frame** — | ⚠ **gap — page-local**: Health chrome (VIRTUAL_MPC_STUDY lift #3): a display dot fed by the bridge state snapshot — screen stream health: subscription state, achieved fps and last-frame age from the bridge's ScreenStreamer. It renders bridge-supplied state only; by design it emits no MPC event, no bridge message and no wire frame. |
+| `health-input-dot` — page chrome `health-input` | — (page-local; no page event, no WS message) | — **no frame** — | ⚠ **gap — page-local**: Health chrome (VIRTUAL_MPC_STUDY lift #3): a display dot fed by the bridge state snapshot — panel input path: age and kind of the last control input the bridge received from any page. It renders bridge-supplied state only; by design it emits no MPC event, no bridge message and no wire frame. |
+| (bridge itself — not a control) | — | `SYSTEM` cmd 4 — data `[1]` | Comm-status announce mirroring the MCU: bridge.py sends it when the GUI's SYSTEM cmd 2 frame arrives (`announced` handshake); the exchange doubles as a both-directions handshake check. |
 
 Runtime → web panel (feedback):
 
-| Runtime packet | Panel call |
+| Runtime packet | Panel effect |
 |---|---|
-| LED/0 `[code, state, colour]` | `MPC.setLed(name(code), state != 0)` — name via reverse BtnLedSequence table (BANK_E..H fold to the A..D buttons + the panel's own bank display is *not* driven; see gaps) |
-| LED/1 `[code, …]` blink | `setLed(name, true)` + bridge-side note (no blink primitive in MPC; approximated as on) |
-| PAD/1 `[pad, state, colourId]` | `MPC.setPad(pad+1, colourFor(colourId), stateLevel(state))` — colourId → the contracts' PadColourIds palette, approximated to CSS colours; StateSampleAssigned/On → level 1, StateOff → 0, blink states → 0.6 |
-| PAD/2 `[state, colourId]` (all pads one colour) | setPad for all 16 |
-| PAD/5 colour+state bulk `[16 colours…, 16 states…]` | per-pad setPad |
-| PAD/8 blink `[pad, state, onColour, offColour]` | setPad with onColour, level 0.6 (approximation) |
-| SLIDER/1..3 `[percent]` | strip segment LEDs are not settable via MPC (no API) — logged only |
-| SYSTEM/* | logged (incl. the COMM_INIT handshake reply and BPM) |
-| anything else (MIDI/CV/unknown) | logged verbatim, not forwarded |
+| LED cmd 0 `[code, state, colour]` | WS `led` → `MPC.setLed(name(code), state != 0)` — name via bridge.py `LED_CODE_TO_PANEL` (reverse BtnLedSequence); BANK_E..H codes 4..7 fold onto the A..D buttons (see gaps) |
+| LED cmd 1 `[code, …]` (blink) | WS `led`, approximated as on — no blink primitive in MPC (bridge.py: “BLINK — approx as on”) |
+| PAD cmd 1 (SET_SINGLE_PAD) / 2 (SET_ALL_SINGLE_COLOUR) / 5 (SET_COLOUR_STATE) / 8 (SET_BLINKING) | WS `padlight` → `MPC.setPad(n, cssColour, level)` — colours are PadColourIds approximated to CSS in bridge.py `PAD_COLOURS` |
+| SLIDER cmd 1..3 `[percent]` | logged only — MPC has no strip-LED API (see the strip gap below) |
+| SYSTEM cmd 2 | the GUI's handshake frame — triggers the bridge's SYSTEM cmd 4 announce (forward table, last row) |
+| SYSTEM (other) / MIDI / CV / unknown | logged verbatim, not forwarded |
+
+Session messages (declared in the manifest as *not* controls):
+
+| WS message | Direction | What it is (manifest: session messages, not controls) |
+|---|---|---|
+| `hello` | page->bridge | bridge.js sends knob baselines on connect; bridge.py syncs Bridge.knob_last. Not a control. |
+| `stream` | both | Screen-stream subscription and its ack (bridge.js startScreen/stopScreen; bridge.py ScreenStreamer). Not a control. |
+| `led` | bridge->page | LED feedback: bridge.py broadcasts {t:'led', id, on} from LED frames via LED_CODE_TO_PANEL; bridge.js applies MPC.setLed. |
+| `padlight` | bridge->page | Pad feedback: bridge.py pad_light() -> {t:'padlight'}; bridge.js applies MPC.setPad. |
+| `log` | bridge->page | Bridge log lines surfaced in the page console by bridge.js. |
+| `ready` | bridge->page | Bridge greeting sent on WS connect. |
+| `state` | both | Health snapshot (lift #3): bridge.py state_snapshot() — bridge/dcl/engine/stream/input health — pushed on connect, every 2 s, and in reply to a page's {t:'state'} request; bridge.js renderHealth() draws the header dots from it. The same snapshot is served over HTTP at GET /state.json. Not a control. |
+| `aftertouch` (page event, not bridged) | page→bridge | template.html re-emits Web MIDI poly aftertouch as an MPC event; bridge.js deliberately does not forward it (logged as unhandled). No panel control produces it — it only exists for external MIDI controllers. |
 
 ### Gaps, honestly
 
-- **INPUT button**: no runtime counterpart exists. Panel-only.
-- **CUR_UP/CUR_DOWN**: no BtnLedSequence codes for jog-ring cursor
-  keys exist; mapped to EN_PLUS/EN_MINUS as the nearest navigation
-  semantics. CUR_LEFT/CUR_RIGHT fold into jog detents for the same
-  reason. All four flagged here rather than silently invented.
-- **Jog push (EN_KNOB_ENTER, 26)**: was unreachable (no click event
-  in `window.MPC`) — **closed Oct 30, 2026, second addendum below**:
-  the panel now emits `jogpush`, the bridge sends BUTTON/0
-  `[26, state]`, proven in-rig (project open + File Browser folder
-  open).
-- **MASTER/REC knob codes 4/5**: invented qlink indices (see table).
-- **Banks E–H feedback**: LED frames for codes 4..7 light the A..D
-  buttons (folded); the panel's own `MPC.bank` display state is
-  panel-internal and not driven by the bridge.
-- **Strip input** has no found consumer in the runtime UI; **strip
-  LED output** has no MPC API. Both directions logged.
-- **Pad colours** are approximations: the runtime speaks in
-  PadColourIds palette indices; the panel speaks CSS colours.
-- **The screen**: streamed since the second pass (see "Screen
-  streaming — as built" below). Remaining screen gap: the page-side
-  rendering is still to be eyeballed in a real browser (Garth's
-  tunnel session is the check), and the stream is display-out only —
-  no touch-back from the panel's screen area into the GUI.
+- **INPUT button** (`button-input`, gap — known-gap): No runtime counterpart exists in BtnLedSequence or anywhere in the stock tree (panel README: the button's function is a guess). Page-local only: buttonDown('INPUT') cycles the four .in-led selector LEDs in the SVG. bridge.py logs 'no runtime counterpart — not sent'.
+- **Cursor ring CUR_UP / CUR_RIGHT / CUR_DOWN / CUR_LEFT** (`button-cur-up`, `button-cur-right`, `button-cur-down`, `button-cur-left`, gap — by-design): no BtnLedSequence code exists for cursor-ring keys. A ring press calls `jogStep(+1)` (UP, RIGHT) or `jogStep(−1)` (DOWN, LEFT) in the page, so it produces exactly one jog detent — a `KNOBS` cmd 0 `EN_KNOB_ROTARY` frame, per the `jog-rotate` row — and the bridge intentionally drops the CUR_* `button` WS message. (The Oct 29 EN_PLUS/EN_MINUS approximations and the CW/CCW detent BUTTON frames were retired Oct 30, 2026, first addendum.)
+- **MASTER/REC knob codes 4/5** (`knob-master`, `knob-rec`, gap — unverified-code): No in-tree source assigns MASTER/REC a knob code; upstream's own simulator leaves both unwired. Codes 4/5 are qlink-shaped placeholders so the GUI's knob branch treats them uniformly — may be inert.
+- **Touch strip** (`strip`, gap — unverified-consumer): No consumer of slider input was found in kick_ui (only the contracts helper reads it); the frame is sent in the protocol's own shape and the effect is unverified — same status as upstream's sim, which emits nothing. Inbound SLIDER LED feedback (cmd 1..3) is logged only: MPC has no strip-LED API.
+- **Header chrome** (`page-midi-in-select`, `page-midi-learn`, `page-clear-map`, `page-sound-toggle`, gap — page-local): header chrome of the web page, not device controls — they act inside the page only and by design emit no bridge message and no wire frame.
+- **Health dots** (`health-bridge-dot`, `health-dcl-dot`, `health-engine-dot`, `health-stream-dot`, `health-input-dot`, gap — page-local): display dots fed by the bridge `state` snapshot (WS push + `GET /state.json`); each dot's subject is stated in its row above. They render bridge-supplied state only and emit nothing. Page-side dot *rendering* is not yet click-tested (no runnable browser on the VM — fourth addendum).
+- **Banks E–H feedback**: LED frames for codes 4..7 light the A..D buttons (folded); the panel's own `MPC.bank` display state is panel-internal and not driven by the bridge.
+- **Pad colours** are approximations: the runtime speaks in PadColourIds palette indices; the panel speaks CSS colours.
+- **Jog push (EN_KNOB_ENTER, 26)**: was unreachable (no click event in `window.MPC`) — **closed Oct 30, 2026, second addendum**: the panel emits `jogpush`, the bridge sends BUTTON cmd 0 `[26, state]`, proven in-rig (project open + File Browser folder open).
+- **The screen**: streamed since the second pass (see “Screen streaming — as built” below). Remaining screen gap: the page-side rendering is still to be eyeballed in a real browser (Garth's tunnel session is the check), and the stream is display-out only — no touch-back from the panel's screen area into the GUI.
 
 ## What was built (Oct 29, 2026)
 
@@ -706,6 +743,189 @@ jogpush, stream (PASS) — and the bridge log shows the wire bytes
 the manifest promises (jog push down = BUTTON frame data
 `[26, 1]`). Panel behaviour unchanged: this tranche adds one JSON
 file, one test file, and this addendum only.
+
+## Addendum (Oct 30, 2026, fourth) — burst screendumps + health dots
+
+Implements lifts #2 and #3 from `../VIRTUAL_MPC_STUDY.md`. VM tree
+only, uncommitted; **the Mac repo (at `11c6a2d`) will diverge on
+this file — and on bridge.py / bridge.js / template.html /
+index.html / controls.json — until the next shipment.**
+
+**Burst screendumps (lift #2).** The stream's steady cadence is
+one capture per `--period` (250 ms default), so a screen change
+could wait ~¾ s to become visible. Now every input that should
+change the device screen — pad, button **press**, knob turn
+(non-zero steps), jog detent, jog push **press**, touch strip —
+calls `Bridge.note_input()`, which (a) records the input for the
+health snapshot and (b) opens a **burst window**: for the next
+**1.0 s** the `ScreenStreamer` captures back-to-back with no
+inter-frame sleep, so frames flow at the rig's raw screendump
+speed (~7 frames per 1 s burst on this rig). Bursts **coalesce**:
+input during a burst extends the deadline, but a burst *session*
+is capped at **3.0 s** from its first input, after which a fresh
+input starts a new session — a knob wiggle or pad roll can never
+queue a capture storm. A failed capture always sleeps a full
+period, bursting or not (never spin against a sick GUI). Frames go
+out over the same single broadcast path as the steady stream;
+burst frames are counted separately in the snapshot
+(`stream.burst_frames`). Input paths are untouched — `note_input`
+only observes and triggers; every `send_hw` call is byte-identical
+to before.
+
+**Measured on the live rig** (probe: subscribe, send input, time
+to the first frame whose bytes differ; same probe, same rig,
+before vs after): steady-state changed-frame latency **0.754 s /
+0.718 s** (two BROWSE toggles) before, **0.219–0.620 s** after
+(BROWSE 0.219 / 0.488 / 0.326 s, MAIN 0.620 s across two runs);
+median frame inter-arrival 0.239 s → 0.190 s (~4.2 → ~5.3 fps).
+The remaining latency is the rig's own render + screendump time
+under load (~0.1–0.5 s/capture), not poll waiting. Small samples,
+honestly labelled: the direction is consistent across every
+sample, the exact figure varies with GUI load.
+
+**State snapshot + health dots (lift #3).** `Bridge.state_snapshot()`
+builds one JSON object — `{"t":"state","seq":n, bridge, dcl,
+engine, stream, input}` — served two ways: pushed over the WS
+(on connect, in reply to a page's `{"t":"state"}` request, on
+input throttled to ~1/s, and on a 2 s heartbeat while any client
+is connected) and as **HTTP `GET /state.json`** on the panel port
+(new `PanelHandler`; file serving unchanged). One scan per
+snapshot (`_proc_scan`) reads `/proc` for the five rig processes
+and for which process holds the UART pty open.
+
+- `bridge`: always `ok` in a delivered snapshot (uptime, WS
+  client count). If the socket dies the page marks it `bad`
+  itself (below).
+- `dcl`: `ok` = a process holds the pty slave **and** the SYSTEM
+  handshake was seen — an idle device is legitimately silent for
+  minutes, so rx age is reported as detail, not gated on (an
+  earlier rx-age-gated draft read `warn` on the healthy idle
+  rig within seconds; corrected the same session). `bad` =
+  nothing has ever held the wire or announced. `warn` = the
+  half-open states (port held pre-handshake, or handshake seen
+  but the port has since dropped).
+- `engine`: `ok` = KickMain + KickUserInterface + KickAudioEngine
+  all present; `warn` = some rig process present; `bad` = none.
+  Per-process counts ride along.
+- `stream`: `off` = no subscribers; `ok` = a frame was delivered
+  within 2 s; `warn` otherwise. fps (sent frames, trailing ~10 s),
+  last-frame age, total + burst frame counts, burst-active flag.
+- `input`: `off` = nothing received yet; `ok` = last input within
+  60 s; `warn` after. Kind + age of the last input ride along.
+
+The page chrome renders five dots in the header (`#health` in
+template.html: bridge / DCL link / engine / screen / input), each
+a `.hdot` whose `data-state` is set verbatim from the snapshot by
+bridge.js `renderHealth()` — colours borrow the VMPC chrome
+signal system (ok `#39d353`, warn `#e0a030`, bad `#ff6b6b`, off
+grey) on the existing dark faceplate (panel.svg byte-identical;
+the faceplate was not touched). Each dot's label carries a detail
+`title` (fps, frame age, rx age, missing processes…). On socket
+close/error bridge.js marks bridge `bad` and the rest `off` — the
+page never paints a healthier picture than it can see. On socket
+open it requests a snapshot immediately.
+
+**Manifest discipline.** The five dots are `controls.json`
+entries `health-{bridge,dcl,engine,stream,input}-dot`, kind
+`page-chrome`, `frame: null`, each with a `gap` declaration
+(display-only, fed by the snapshot, emits nothing). The `state`
+message is declared in `session_messages_not_controls`
+(direction `both`). Selftest: **8/8 PASS, 65 controls** (60 + 5
+dots), 17 declared gaps.
+
+**Transition proof — which kind, said plainly.** (1) *Simulated
+at the bridge level* (the rig was not disturbed for this): a
+throwaway bridge on ports 8893/8894 with its own pty and no DCL
+read `dcl: bad` (`announced: false, port_open: false`); a fake
+DCL (a 20-line script opening the pty slave and sending a real
+SYSTEM/2 frame built by bridge.py's own `build_frame`) flipped
+it to `dcl: ok` (handshake + port held, comm-status announce
+replied on the wire); after the fake DCL exited and the wire had
+been silent > 15 s with the port released, it read `dcl: warn`.
+`engine: ok` throughout (the /proc scan saw the real rig). (2)
+*Rig-real*: the production bridge was restarted onto this code
+(DCL restarted by PID; KickMain respawned it as PID 20934; the
+SYSTEM/2 handshake replayed in the new bridge's log) and the live
+`/state.json` reads dcl `ok` / engine `ok` / stream `off`; a
+`test_client.py all` run then showed the pushed snapshot arriving
+mid-battery with `input: {last_kind: "pad", last_age_s: 0.28}` and
+`stream.burst_active: true`; across the verification battery the
+snapshot counted 173 frames sent, 39 of them burst frames over 6
+burst sessions, and the log shows each `burst started` /
+`burst ended (7 burst frames this session)`. Stream `off → ok →
+off` was exercised by the stream test's subscribe/unsubscribe.
+The page-side dot rendering itself is **not** click-tested — no
+runnable browser exists on the VM (same standing caveat as every
+prior tranche); bridge.js is syntax-checked, its DOM ids are
+pinned to template.html by the selftest, and the WS payloads it
+consumes were captured live above.
+
+**Verification (this session):** controls selftest 8/8 (65
+controls); stub-DOM 19/19 (template inline script untouched);
+`node --check bridge.js` clean; `build.py` regeneration changes
+index.html only by the health CSS + header markup, panel.svg
+byte-identical; protocol client on the live rig — `all` PASS
+(pad + BROWSE LED gate), `jogpush` sent, `stream` PASS. Ops note
+from the battery: the jogpush step ran with the File Browser open
+on `/app/demos/Demo 1`, whose only file is `Demo 01.png` — the
+confirm tried to load a PNG and the GUI raised a modal
+"Selected file cannot be loaded" warning (that, not a panel
+fault, is why one BROWSE sample in the first after-run showed no
+screen change). The dialog ignores Esc, ENTER-via-panel and
+clicks at crop-region coordinates; it dismisses with a click at
+its X in **full-window** coordinates (≈ (787, 143) in the
+1920×1200 GUI window — the File Browser spans the whole window,
+unlike the device screens the earlier crops describe). The rig
+was left as found otherwise: bridge (new code) + full rig
+running, File Browser open on `/app/demos/Demo 1`, health
+snapshot all-ok.
+
+## Addendum (Oct 30, 2026, fifth) — EK-7: mapping table corrected to controls.json
+
+The "Mapping — web panel → runtime" section near the top of this
+document was still the Oct 29 table. It predated everything Oct 30
+changed, and diffing it against `controls.json` (the manifest, third
+addendum) found it stale in five ways:
+
+- **Jog rotate row was wrong**: it claimed `BUTTON` frames carrying
+  `EN_KNOB_CW`/`EN_KNOB_CCW` detent codes — the dialect the first
+  addendum retired. The manifest (and the bridge) send `KNOBS` cmd 0
+  `EN_KNOB_ROTARY`, data `[0 EN_KNOB_CENTER, direction, steps]`.
+- **CUR_UP/CUR_DOWN row was wrong**: it claimed `BUTTON` frames
+  `[21 EN_PLUS / 27 EN_MINUS]` as an "approximation". Per the
+  manifest all four cursor-ring keys are by-design gaps: a press
+  produces one jog detent via `jogStep(±1)` and the bridge drops the
+  CUR_* `button` message. The "Gaps, honestly" bullet repeated the
+  retired claim; both are corrected.
+- **CUR_RIGHT/CUR_LEFT** were folded into one vague "jog detent"
+  row; they are now individual rows with their directions (+1 / −1).
+- **13 controls were not represented at all**: the four header-chrome
+  entries and the five health dots (fourth addendum) had no rows, and
+  knob-p2/knob-p3/jog-rotate/jog-push appeared only inside range
+  prose. No manifest id appeared verbatim anywhere in the section.
+- **Completeness**: contract names were missing for most codes (the
+  manifest names every one — `EN_MAINMODE`, `EN_TRACK_MIX`,
+  `EN_KNOB_QLINK`, `EN_SLIDER_TOUCH_INPUT`, …), and the `state`,
+  `hello` and `ready` session messages were absent.
+
+Fix: the section's forward table, feedback table, session-message
+table and gaps list were **regenerated from `controls.json`** by a
+one-off generator script (run for this correction, not shipped; the
+manifest + `test_controls.py` remain the in-tree source of truth and
+guard). The corrected table has one row per manifest control — 65
+rows — with page event → WS message → CPktMgr frame (packet, cmd,
+contract names for the command and the code, shifted code where one
+exists) or, for the 17 gap controls, an explicit "no frame" cell
+plus the declared gap status and reason. Verification was row-level
+and mechanical: an independent checker re-parsed the corrected
+section and compared every row against the manifest — 65/65 controls
+present exactly once, every frame fact matching, all 7 session
+messages plus the unbridged `aftertouch` event present, and the
+retired tokens (`EN_PLUS`, `EN_MINUS`, `EN_KNOB_CW/CCW`) surviving
+only in sentences that say they were retired. **Zero discrepancies.**
+Nothing else in this document was changed: the four addenda above
+stand as the dated record, including where they describe the retired
+dialect as history.
 
 ## Follow-ons (designed, not built)
 - **Browser-level click verification** once a runnable browser
