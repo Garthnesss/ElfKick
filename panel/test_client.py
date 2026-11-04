@@ -10,6 +10,10 @@ Usage:
     python3 test_client.py pad      # pad 1 press/release (voice evidence is
                                     # read from the rig GUI, not from WS)
     python3 test_client.py browse   # BROWSE press; expect a BROWSE led-on msg
+    python3 test_client.py jogpush  # jog click (EN_KNOB_ENTER press+release);
+                                    # no WS feedback is expected — the effect
+                                    # (File Browser open/confirm) is read from
+                                    # the rig GUI screen/logs, like pad mode
     python3 test_client.py all      # both, sequentially
     python3 test_client.py stream [host] [seconds]
                                     # subscribe to the screen stream; count
@@ -249,6 +253,15 @@ def main():
         time.sleep(0.5)
         print(f"pad 1 press+release sent. feedback meanwhile: {inbox.snapshot()}")
         print("  (voice evidence is read from the rig GUI meters/logs, not WS)")
+
+    if mode == "jogpush":
+        client.send_text(json.dumps({"t": "jogpush", "down": True}))
+        time.sleep(0.3)
+        client.send_text(json.dumps({"t": "jogpush", "down": False}))
+        time.sleep(0.5)
+        print("jogpush press+release sent (EN_KNOB_ENTER via bridge).")
+        print("  (open/confirm evidence is read from the rig GUI, not WS)")
+        sys.exit(0)
 
     if mode in ("browse", "all"):
         inbox.clear()

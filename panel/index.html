@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Groovebox Panel</title>
 <style>
   :root { --bg:#0e0e10; --fg:#d8d8dc; --dim:#8a8a92; --accent:#4fd8ff; }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
-    font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    overscroll-behavior:none; -webkit-tap-highlight-color:transparent; }
   body { display:flex; flex-direction:column; align-items:center; }
   header { width:100%; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center;
     padding:8px 16px; border-bottom:1px solid #222; }
@@ -20,7 +21,10 @@
   #midi-status { color:var(--dim); }
   main { flex:1; width:100%; display:flex; justify-content:center; align-items:center; padding:12px 16px; min-height:0; }
   #panel { width:min(100%, calc(100vh - 90px)); aspect-ratio:1; }
-  #panel svg { width:100%; height:100%; display:block; user-select:none; -webkit-user-select:none; touch-action:none; }
+  #panel svg { width:100%; height:100%; display:block; user-select:none; -webkit-user-select:none;
+    -webkit-touch-callout:none; touch-action:none; }
+  #panel, [data-ctl] { touch-action:none; }
+  header button, header select { touch-action:manipulation; }
   [data-ctl=pad], [data-ctl=button] { cursor:pointer; }
   [data-ctl=knob], [data-ctl=strip] { cursor:ns-resize; }
   [data-ctl=jog] { cursor:grab; }
@@ -73,6 +77,7 @@
      MPC.on('button', ({id, down}) => ...)               e.g. 'PLAY', 'SHIFT', 'A'
      MPC.on('knob',   ({id, value}) => ...)              'MASTER','REC','P1'..'P4', value 0..1
      MPC.on('jog',    ({delta}) => ...)                  +1 / -1 per detent
+     MPC.on('jogpush', ({down}) => ...)                  jog click (press without rotating) = ENTER
      MPC.on('strip',  ({value}) => ...)                  0..1
      MPC.on('*', (type, detail) => ...)                  everything
      MPC.setLed(id, on)          button LED (true/false)
@@ -148,6 +153,13 @@ function buttonDown(id) {
   buttonsDown.add(id);
   $(`#btn-${id}`)?.classList.add('down');
   MPC.emit('button', { id, down: true });
+  /* The cursor ring around the encoder steps the encoder itself:
+   * RIGHT/UP = one detent clockwise, LEFT/DOWN = one anticlockwise,
+   * emitted as the same 'jog' event a wheel drag produces (the rig's
+   * screens navigate on that message; the bridge drops the CUR_*
+   * button frames, which the runtime's screens do not consume). */
+  if (id === 'CUR_RIGHT' || id === 'CUR_UP') jogStep(1);
+  else if (id === 'CUR_LEFT' || id === 'CUR_DOWN') jogStep(-1);
   const shift = buttonsDown.has('SHIFT');
   if ('ABCD'.includes(id) && id.length === 1) {
     MPC.bank = shift ? 'EFGH'['ABCD'.indexOf(id)] : id;
@@ -183,13 +195,21 @@ function knobSet(id, v) {
   last = { text: id, sub: `${Math.round(MPC.knobs[id] * 100)}%` };
   dirty = true;
 }
-let jogAngle = 0;
+let jogAngle = 0, jogStepsTotal = 0;
 function jogStep(delta) {
-  jogAngle += delta * 12;
+  jogAngle += delta * 12; jogStepsTotal++;
   $('#jog .rot').setAttribute('transform', `rotate(${jogAngle})`);
   MPC.emit('jog', { delta });
   last = { text: 'JOG', sub: `${delta > 0 ? '+' : ''}${delta}` };
   dirty = true;
+}
+function jogPush(down) {
+  /* Jog click = the encoder's push switch (ENTER on the hardware).
+   * Emitted as press + release, like every other panel button; the
+   * bridge turns it into the EN_KNOB_ENTER button frame the runtime's
+   * screens switch on (e.g. File Browser open/confirm). */
+  MPC.emit('jogpush', { down });
+  if (down) { last = { text: 'JOG', sub: 'ENTER' }; dirty = true; }
 }
 function stripSet(v) {
   MPC.strip = clamp(v, 0, 1);
@@ -201,6 +221,13 @@ function stripSet(v) {
 MPC.setLed('A', true);
 
 /* ---------- mouse / touch ---------- */
+/* Touch hardening: a long press on a held pad must not summon the
+ * right-click menu (Windows/Android touch) or the iOS callout, and
+ * legacy iOS pinch gestures must not zoom the panel mid-play. The
+ * pointer handlers below already unify mouse/touch/pen; these guards
+ * stop the browser from interpreting the same gestures itself. */
+svg.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('gesturestart', e => e.preventDefault());
 const drags = new Map();
 svg.addEventListener('pointerdown', e => {
   const el = e.target.closest('[data-ctl]'); if (!el) return;
@@ -218,6 +245,7 @@ svg.addEventListener('pointerdown', e => {
   else if (ctl === 'jog') {
     const r = el.getBoundingClientRect(); d.cx = r.left + r.width / 2; d.cy = r.top + r.height / 2;
     d.a = Math.atan2(e.clientY - d.cy, e.clientX - d.cx); d.acc = 0;
+    d.jogSteps0 = jogStepsTotal;   // click detection: see endDrag
   }
   drags.set(e.pointerId, d);
 });
@@ -237,6 +265,15 @@ const endDrag = e => {
   drags.delete(e.pointerId);
   if (d.ctl === 'pad') padUp(+d.id);
   else if (d.ctl === 'button') buttonUp(d.id);
+  else if (d.ctl === 'jog' && jogStepsTotal === d.jogSteps0) {
+    /* Press released with no detent in between = a click, not a
+     * rotate: fire the push switch. A drag that stepped the encoder
+     * (jogStepsTotal moved) must NOT confirm — rotating to a File
+     * Browser entry would otherwise open it on release. Sub-detent
+     * wiggles (< 12 degrees, acc never reached a step) still count
+     * as clicks, which matches a real encoder push. */
+    jogPush(true); jogPush(false);
+  }
 };
 svg.addEventListener('pointerup', endDrag);
 svg.addEventListener('pointercancel', endDrag);

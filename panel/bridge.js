@@ -120,12 +120,13 @@
   MPC.on('button', d => send({ t: 'button', id: d.id, down: d.down }));
   MPC.on('knob',   d => send({ t: 'knob',   id: d.id, value: d.value }));
   MPC.on('jog',    d => send({ t: 'jog',    delta: d.delta }));
+  MPC.on('jogpush', d => send({ t: 'jogpush', down: d.down }));
   MPC.on('strip',  d => send({ t: 'strip',  value: d.value }));
   /* Anything else the panel emits (e.g. 'aftertouch', or a future
    * screen-touch event) has no bridge mapping yet — log it, don't
    * forward. Touch-back from the streamed screen is out of scope:
    * the stream is display-out only. */
-  const FORWARDED = ['pad', 'button', 'knob', 'jog', 'strip'];
+  const FORWARDED = ['pad', 'button', 'knob', 'jog', 'jogpush', 'strip'];
   MPC.on('*', (type) => {
     if (!FORWARDED.includes(type)) console.log('[bridge] unhandled panel event:', type);
   });

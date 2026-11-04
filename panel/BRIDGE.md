@@ -177,6 +177,7 @@ a button press emits the shifted code. SHIFT itself emits
 | button CUR_UP / CUR_DOWN | BUTTON/0 `[21 EN_PLUS / 27 EN_MINUS, state]` | ⚠ approximation — see gaps |
 | button INPUT | — | ⚠ **no runtime counterpart** (panel README: its function is a guess). Emits nothing; logged. |
 | jog delta ±1 | BUTTON/0 `[30 EN_KNOB_CW / 28 EN_KNOB_CCW, 1]` per detent | the shape the screens actually switch on (`kick_AppGrid.cpp:513`, step sequencer) and the sim emits; a KNOBS/EN_KNOB_ROTARY center-knob shape also exists in contracts but is not what the screens key on |
+| jog click (press, no rotate) | BUTTON/0 `[26 EN_KNOB_ENTER, 1]` then `[26, 0]` | added Oct 30 (second addendum): EN_KNOB_ENTER is a BtnLedSequence code on a BUTTON frame — `isCenterKnobClickMessage` in the contracts helper; FileBrowser `knobClicked()`, RecentProject open, AppAssignSample all switch on it that way |
 | knob P1..P4 (absolute 0..1) | KNOBS/1 `[idx 0..3, dir, steps]` | runtime knobs are relative encoders; bridge keeps last value per knob, steps = round(Δ × 127) (sim qlink scale), one packet per change |
 | knob MASTER / REC (absolute 0..1) | KNOBS/1 `[4 / 5, dir, steps]` | ⚠ **unverified codes** — no in-tree source assigns MASTER/REC knob codes (upstream's own sim leaves both unwired); qlink-shaped so the GUI's knob branch treats them uniformly. Flagged, may be inert. |
 | strip value 0..1 | SLIDER/0 `[round(v × 100)]` | ⚠ no consumer of slider *input* found in kick_ui (only the contracts helper reads it); sent in the protocol's own shape, effect unverified — same status as upstream's sim, whose strip emits nothing at all |
@@ -203,9 +204,11 @@ Runtime → web panel (feedback):
   keys exist; mapped to EN_PLUS/EN_MINUS as the nearest navigation
   semantics. CUR_LEFT/CUR_RIGHT fold into jog detents for the same
   reason. All four flagged here rather than silently invented.
-- **Jog push (EN_KNOB_ENTER, 26)**: the panel's jog emits deltas only
-  — no click event exists in `window.MPC`, so KNOB_ENTER is
-  unreachable from the web panel this pass.
+- **Jog push (EN_KNOB_ENTER, 26)**: was unreachable (no click event
+  in `window.MPC`) — **closed Oct 30, 2026, second addendum below**:
+  the panel now emits `jogpush`, the bridge sends BUTTON/0
+  `[26, state]`, proven in-rig (project open + File Browser folder
+  open).
 - **MASTER/REC knob codes 4/5**: invented qlink indices (see table).
 - **Banks E–H feedback**: LED frames for codes 4..7 light the A..D
   buttons (folded); the panel's own `MPC.bank` display state is
@@ -438,6 +441,182 @@ test ran.
 - No touch-back: clicks on the streamed screen area do nothing
   (logged as unhandled if the panel ever emits them).
 
+## Addendum (Oct 30, 2026) — encoder dialect fix + input hardening
+
+**The panel's encoder and cursor arrows were dead in the screens that
+matter — a dialect bug, not a wiring bug.** Garth (Oct 29 evening):
+"the arrows don't work on the main knob control" / "where's the
+synth?" Log forensics first: his browser session (Safari, 03:24–03:26
+UTC) shows pads (17 presses), buttons (MENU/MAIN/BROWSE), cursor-ring
+presses (CUR_RIGHT ×13, CUR_DOWN ×12) and a P4 knob drag all
+transmitted — the page's Pointer Events wiring worked for mouse all
+along. What the runtime did with the arrow/wheel frames was the
+problem:
+
+- The bridge translated jog deltas and CUR_LEFT/RIGHT into
+  `EN_KNOB_CW/CCW` **detent BUTTON frames** and CUR_UP/DOWN into
+  EN_PLUS/EN_MINUS approximations.
+- `FileBrowser::handleCommand` (kick_fileBrowser.cpp:936) switches
+  ONLY on a **KNOBS / EN_KNOB_ROTARY message with knob code
+  EN_KNOB_CENTER** (→ `knobRotated(getKnobValue)`) and on
+  EN_KNOB_ENTER. Detent buttons and PLUS/MINUS are ignored there —
+  so in the File Browser (the screen needed to load a project) the
+  wheel and all four arrows did literally nothing. AppGrid's detent
+  branch is a TBD repaint; the step sequencer and most other screens
+  likewise consume the KNOBS shape (`getKnobCode`/`getKnobValue`,
+  data = [code, direction, steps], direction 1 = clockwise).
+
+**Fix (this session):**
+- `bridge.py` jog handler: emits ONE rotary frame per jog event —
+  KNOBS cmd 0, data [EN_KNOB_CENTER=0, dir, steps] — instead of
+  detent BUTTON frames. The CUR_* translations in `on_button` are
+  retired (logged as superseded, not sent) so a press steps once.
+- `template.html` `buttonDown`: cursor-ring presses also call
+  `jogStep(±1)` (RIGHT/UP = +1, LEFT/DOWN = −1) — the arrows step
+  the encoder graphic and emit the same `jog` event as a wheel
+  drag. Computer-keyboard arrows (KEYBTN → buttonDown) inherit it.
+- Proof: WS jog ×3 in the File Browser moved the selection
+  kick.wav → ElfTest01.png → Sequence 01 (captures compared, AE
+  27,575); bridge log `pty tx [jog +1 (rotary)]: 4d54040000040001019d0a`.
+  A Node stub-DOM run of the shipped inline script passes 14/14
+  synthetic-mouse checks (pad down/up, button down/up, knob drag +
+  wheel, strip down + drag, jog drag, all four arrows → jog ∓1).
+  Still open, unchanged: **EN_KNOB_ENTER has no panel event** — the
+  panel can navigate the browser but not confirm/open with it
+  (project loading here was done via xdotool on the GUI).
+- Note the upstream simulator diverges the same way (its central
+  rotary also emits detent codes); the rotary shape is the one the
+  shipping screens implement (cf. keyboard_detector.cpp, which
+  produces KNOBS/ROTARY for the arrow keys).
+
+**Touch/mouse hardening (same session):** template.html viewport
+gained `maximum-scale=1, user-scalable=no, viewport-fit=cover`;
+`touch-action:none` extended from the svg to `[data-ctl]` and
+`#panel`; `overscroll-behavior:none`, `-webkit-touch-callout:none`,
+tap-highlight off; a `contextmenu` suppressor on the svg (long-press
+on a held pad no longer summons the right-click menu) and a legacy
+`gesturestart` guard. bridge.py serves the panel dir per request
+(SimpleHTTPRequestHandler), so a page reload picks changes up — no
+bridge restart needed for page edits. Bridge code changes used the
+documented remedy (fresh bridge/pty first, DCL restarted by exact
+PID; SYSTEM/2 handshake re-verified).
+
+**Ops notes from the same session:** the Projects home screen lays
+out over the full 1920×1200 window (its File Browser header button
+is at ≈(1671, 76) root coords, from setBoundsRelative in
+kick_RecentProject.cpp), while the device screens live in the
+1024×600 top-left region — GUI click automation must use the right
+coordinate space per screen. The home screen answers BROWSE with no
+LED and no navigation (known nuance, reconfirmed). One rig outage:
+the whole KickMain tree died immediately after a harness
+`process.kill` of a stuck background exec (that tool tears down
+detached descendants — the likely cause); rig restarted per
+RUNTIME_LOG, handshake + BROWSE gate re-verified, ElfSynth01
+reloaded and left on the Track Mixer (proof frames:
+`panel-synth-on-track.png`, `panel-synth-meter-lit.png` — pad hold
+meter AE 2205 / 1008 / 846 at +0.15/+0.45/+0.85 s, 0 after release).
+
+## Addendum (Oct 30, 2026, second) — jog push: EN_KNOB_ENTER wired
+
+**The last panel-input gap is closed: the jog now clicks.** The
+panel can navigate the File Browser *and* confirm/open with the
+encoder, end to end, proven in-rig below.
+
+**The frame — established from the tree, not guessed.** Despite the
+name, EN_KNOB_ENTER is **not a KNOBS message**:
+
+- `dcl_contracts.h`: `EN_KNOB_ENTER = 26` in `BtnLedSequence`
+  (neighbours: EN_KNOB_CCW 28, EN_KNOB_CW 30 — the detent codes).
+- `dcl_contracts_helper.cpp:40`: `isCenterKnobClickMessage` =
+  `isButtonMessage` (type BUTTON, cmd EN_BTN_STATUS) **&&** code ==
+  EN_KNOB_ENTER. (The *rotate* helper is the KNOBS one.)
+- Consumers switch on exactly that shape:
+  `FileBrowser::handleCommand` (kick_fileBrowser.cpp:941) →
+  `knobClicked()` = `onRowDoubleClicked(selectedRow)`;
+  `kick_RecentProject.cpp:371` (open project); `kick_AppAssignSample`
+  and `kick_ControlBase.h` likewise.
+- The upstream sim emits the same code from its encoder push
+  (`kick_SimulatorMainControl.cpp:155`), as does the keyboard
+  detector's Return key (keyboard_detector.cpp:102).
+
+So: **BUTTON / cmd 0, data `[26, 1]` on press, `[26, 0]` on
+release** — wire bytes `4d54010000031a01a6 0a` / `…1a00 97 0a`,
+the same shape as every other panel button.
+
+**What changed (VM tree only, uncommitted):**
+
+- `template.html` — new `MPC` event **`jogpush`** (`{down}`) + a
+  `jogPush()` emitter. Click discrimination lives in the pointer
+  handlers: `pointerdown` on the jog records the detent counter;
+  on release, press+release fire **only if no detent was emitted
+  in between** — a rotate-drag can never confirm on release, and a
+  sub-detent wiggle (< 12°) still counts as a click, like a real
+  push switch. `index.html` regenerated with `build.py`.
+- `bridge.js` — forwards `jogpush` → `{"t":"jogpush","down":…}`;
+  added to the `FORWARDED` list.
+- `bridge.py` — `EN_KNOB_ENTER = 26` constant; new `jogpush`
+  handler sending the BUTTON frame above (press and release,
+  mirroring the other buttons; screens act on BTN_PRESSED). The
+  stale "no panel button: 26 KNOB_ENTER" comment in the LED table
+  is corrected.
+- `test_client.py` — new **`jogpush` mode** (sends press+release;
+  effect is read from the GUI, like `pad` mode).
+- `test_panel_stub.js` — **new file**: the stub-DOM synthetic-mouse
+  harness, recreated and saved in-tree this time (the Oct 30
+  original was a session artifact and was lost), extended with the
+  jogpush checks. Run: `node test_panel_stub.js`.
+
+**Proof:**
+
+1. **Protocol level (fake DCL on the pty slave):** bridge on a test
+   link, WS in, bytes out parsed with the bridge's own CRC-verified
+   FrameParser — **5/5**: jogpush down → `(BUTTON, 0, 0, [26, 1])`,
+   up → `[26, 0]`, order preserved; jog +1 rotary and BROWSE frames
+   unchanged (the rotary frame is byte-identical to the one logged
+   in the first addendum).
+2. **Panel level (Node stub-DOM, shipped inline script): 19/19** —
+   the previous suite's coverage (pad, button, knob drag + wheel,
+   strip down + drag, jog drag, all four arrows → jog ∓1) plus the
+   new click path: plain click → jogpush down then up, no detent;
+   drag → detent(s) and **no** jogpush on release; sub-detent
+   wiggle → no detent, jogpush still fires.
+3. **In-rig (full KickMain tree, Xvfb :99):**
+   - Projects home, "Demo 01" tile selected → WS `jogpush` → the
+     project **opened** (GUI left the home screen for the project
+     view; root-capture AE **402,204**; `panel-enter-home.png` →
+     `panel-enter-project.png`).
+   - BROWSE gate passed (led on), File Browser open. Its right
+     table is empty at the Internal location (`/home/Kick/projects`
+     holds no files on this rig, so rotary steps have nothing to
+     move there — AE 0 is the table's emptiness, not a dead
+     encoder; the frames are in the GUI log as type 4). Location
+     "Demos" was picked with an xdotool GUI click (disclosed: the
+     location list has no panel path), populating the table with
+     the "Demo 1" folder.
+   - WS `jogpush` → **the browser navigated into the selected
+     folder**: path `/app/demos` → `/app/demos/Demo 1`, contents
+     listed (`panel-enter-browser-demos.png` →
+     `panel-enter-browser-opened.png`). GUI log confirms delivery:
+     `Data[0] From DCL:26 cmd 0 type 1 … is Navigation message`,
+     and DCL's own log parsed the frames off the pty
+     (`Data[0] : 26 Cmd : 0 type : 1`).
+
+**Rig-restart notes (this session):** the rig was down and `/app`
+had been wiped (root filesystem is ephemeral across VM restarts),
+so the GUI rendered black and spun at ~97 % CPU until the
+RUNTIME_LOG factory-content step was re-run; one tree death under
+memory pressure (7.9 GB VM, ~0.6 GB free at the time) was recovered
+by the documented remedy — fresh bridge/pty first, then KickMain.
+The GUI-by-exact-PID restart also worked as documented (KickMain
+respawned it). Rig and bridge were left running, Demo project
+loaded, File Browser open at `/app/demos/Demo 1`.
+
+**Still open, unchanged:** browser-side rendering of `bridge.js`
+remains unverified by execution (no runnable browser on this VM) —
+Garth's page session is the check; a jog click there should now
+send `jogpush` exactly as the synthetic checks show. Nothing here
+has been committed, pushed, or copied to the Mac.
+
 ## Follow-ons (designed, not built)
 - **Browser-level click verification** once a runnable browser
   exists on the VM (any Chromium/Firefox): load the served page,
@@ -448,6 +627,6 @@ test ran.
 - **Pad colour fidelity:** PadColourIds → CSS is an approximation
   table in `bridge.py`; the sim's `getPadColourFromId` palette
   (kick_Simulator.cpp) is the in-tree reference if exact hues matter.
-- **KNOB_ENTER (jog push)** needs a panel event that doesn't exist;
-  if the panel gains one, the bridge mapping is one line
-  (BUTTON/0 `[26, state]`).
+- **KNOB_ENTER (jog push)** — **DONE Oct 30, 2026** (second
+  addendum above): the panel gained the `jogpush` event and the
+  bridge mapping is indeed BUTTON/0 `[26, state]`, proven in-rig.

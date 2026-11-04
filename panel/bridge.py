@@ -130,8 +130,10 @@ LED_CODE_TO_PANEL = {
     42: "REC", 43: "OVERDUB", 44: "STOP", 45: "PLAY", 46: "PLAY_START",
     48: "FULL_LEVEL", 49: "FULL_LEVEL",        # FULL_LEVEL / HALF_LEVEL
     50: "16_LEVELS", 52: "ERASE",
-    # no panel button: 20 COPY, 21 PLUS, 26 KNOB_ENTER, 27 MINUS,
-    # 28 KNOB_CCW, 29 BACK, 30 KNOB_CW, 47 LINK, 51 NOTES, 54 COLOR_EDIT
+    # no LED for: 20 COPY, 21 PLUS, 27 MINUS, 28 KNOB_CCW, 29 BACK,
+    # 30 KNOB_CW, 47 LINK, 51 NOTES, 54 COLOR_EDIT — and 26 KNOB_ENTER,
+    # which has no LED either but DOES have a panel event since Oct 30:
+    # the jog push (see the "jogpush" handler in on_web_message).
 }
 
 # Panel button id -> BtnLedSequence code (unshifted), and the shifted
@@ -148,7 +150,8 @@ BUTTON_CODES = {
     "ERASE": (52, 52), "REC": (42, 42), "OVERDUB": (43, 43),
     "STOP": (44, 44), "PLAY": (45, 45), "PLAY_START": (46, 46),
 }
-EN_PLUS, EN_MINUS, EN_KNOB_CW, EN_KNOB_CCW, EN_SHIFT = 21, 27, 30, 28, 31
+EN_PLUS, EN_MINUS, EN_KNOB_ENTER, EN_KNOB_CW, EN_KNOB_CCW, EN_SHIFT = \
+    21, 27, 26, 30, 28, 31
 
 # PadColourIds -> CSS approximations (panel speaks CSS; null = pad's own)
 PAD_COLOURS = {
@@ -566,9 +569,39 @@ class Bridge:
         if kind == "jog":
             delta = int(msg.get("delta", 0))
             if delta:
-                code = EN_KNOB_CW if delta > 0 else EN_KNOB_CCW
-                for _ in range(min(abs(delta), 8)):
-                    self.send_hw(PKT_BUTTON, 0, [code, 1], f"jog {'+' if delta > 0 else '-'}1")
+                # The runtime's screens navigate on the ROTARY knob
+                # message (KNOBS / EN_KNOB_ROTARY, knob code
+                # EN_KNOB_CENTER, direction, steps) — e.g.
+                # FileBrowser::handleCommand switches on exactly that
+                # and ignores the EN_KNOB_CW/CCW detent BUTTON frames
+                # this handler used to send (those are near-no-ops in
+                # AppGrid and ignored in the File Browser, which is
+                # why the panel's encoder and cursor arrows appeared
+                # dead). Direction: 1 = clockwise, 0 = anticlockwise
+                # (KnobDirection). One frame, steps = detent count.
+                direction = 1 if delta > 0 else 0
+                steps = min(abs(delta), 8)
+                self.send_hw(PKT_KNOBS, 0, [0, direction, steps],
+                             f"jog {'+' if delta > 0 else '-'}{steps} (rotary)")
+            return
+        if kind == "jogpush":
+            # Jog push = EN_KNOB_ENTER. Despite the name it is NOT a
+            # KNOBS message: in the contracts it is a BtnLedSequence
+            # code (dcl_contracts.h: EN_KNOB_ENTER = 26) carried by a
+            # BUTTON / EN_BTN_STATUS frame, exactly like a button
+            # press. DclContractsHelper::isCenterKnobClickMessage
+            # (dcl_contracts_helper.cpp) is defined that way, and the
+            # consumers switch on it that way — e.g.
+            # FileBrowser::handleCommand (kick_fileBrowser.cpp):
+            # isButtonMessage && code == EN_KNOB_ENTER && state ==
+            # BTN_PRESSED -> knobClicked() (open/confirm). The
+            # upstream sim emits the same code from its encoder push
+            # (kick_SimulatorMainControl.cpp). Press AND release are
+            # forwarded, mirroring every other panel button; screens
+            # act on BTN_PRESSED.
+            down = bool(msg.get("down"))
+            self.send_hw(PKT_BUTTON, 0, [EN_KNOB_ENTER, 1 if down else 0],
+                         f"jog push {'down' if down else 'up'} (EN_KNOB_ENTER)")
             return
         if kind == "strip":
             pct = int(round(float(msg.get("value", 0.0)) * 100))
@@ -580,14 +613,17 @@ class Bridge:
         if bid == "INPUT":
             log("ws button INPUT: no runtime counterpart — not sent")
             return
-        if bid in ("CUR_UP", "CUR_DOWN"):
-            code = EN_PLUS if bid == "CUR_UP" else EN_MINUS
-            self.send_hw(PKT_BUTTON, 0, [code, 1 if down else 0], f"{bid} (approx)")
-            return
-        if bid in ("CUR_LEFT", "CUR_RIGHT"):
+        if bid in ("CUR_UP", "CUR_DOWN", "CUR_LEFT", "CUR_RIGHT"):
+            # Retired translations (EN_PLUS/EN_MINUS approximations and
+            # EN_KNOB_CW/CCW detent frames): the runtime's screens do
+            # not consume either shape for navigation — the File
+            # Browser answers only the ROTARY knob message. The page
+            # now emits a 'jog' event for cursor-ring presses (see
+            # template.html buttonDown), which the jog handler above
+            # sends in the rotary shape. These button frames are
+            # dropped so a press steps the encoder exactly once.
             if down:
-                code = EN_KNOB_CW if bid == "CUR_RIGHT" else EN_KNOB_CCW
-                self.send_hw(PKT_BUTTON, 0, [code, 1], f"{bid} (as jog detent)")
+                log(f"ws button {bid}: superseded by jog (rotary) path — not sent")
             return
         pair = BUTTON_CODES.get(bid)
         if pair is None:
