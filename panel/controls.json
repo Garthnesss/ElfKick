@@ -1598,6 +1598,96 @@
     "status": "page-local",
     "reason": "Header chrome of the web page, not a device control: acts inside the page only and by design emits no bridge message and no wire frame."
    }
+  },
+  {
+   "id": "health-bridge-dot",
+   "kind": "page-chrome",
+   "page_id": "health-bridge",
+   "page": {
+    "element": "#health-bridge",
+    "data_ctl": null,
+    "handler": "renderHealth(snapshot) in bridge.js sets the dot's data-state + title from the bridge {t:'state'} snapshot; healthSocketDown() forces bridge=bad / rest off when the WS drops. Markup lives in template.html's header (#health).",
+    "event": null,
+    "ws_message": null
+   },
+   "bridge": null,
+   "frame": null,
+   "gap": {
+    "status": "page-local",
+    "reason": "Health chrome (VIRTUAL_MPC_STUDY lift #3): a display dot fed by the bridge state snapshot \u2014 bridge process liveness as the page sees it: socket open/closed plus the snapshot's own bridge field (uptime, client count). It renders bridge-supplied state only; by design it emits no MPC event, no bridge message and no wire frame."
+   }
+  },
+  {
+   "id": "health-dcl-dot",
+   "kind": "page-chrome",
+   "page_id": "health-dcl",
+   "page": {
+    "element": "#health-dcl",
+    "data_ctl": null,
+    "handler": "renderHealth(snapshot) in bridge.js sets the dot's data-state + title from the bridge {t:'state'} snapshot; healthSocketDown() forces bridge=bad / rest off when the WS drops. Markup lives in template.html's header (#health).",
+    "event": null,
+    "ws_message": null
+   },
+   "bridge": null,
+   "frame": null,
+   "gap": {
+    "status": "page-local",
+    "reason": "Health chrome (VIRTUAL_MPC_STUDY lift #3): a display dot fed by the bridge state snapshot \u2014 DCL/panel-MCU link: bridge 'announced' handshake flag, whether a process holds the pty slave open, and the age of the last frame received from KickDeviceControl. It renders bridge-supplied state only; by design it emits no MPC event, no bridge message and no wire frame."
+   }
+  },
+  {
+   "id": "health-engine-dot",
+   "kind": "page-chrome",
+   "page_id": "health-engine",
+   "page": {
+    "element": "#health-engine",
+    "data_ctl": null,
+    "handler": "renderHealth(snapshot) in bridge.js sets the dot's data-state + title from the bridge {t:'state'} snapshot; healthSocketDown() forces bridge=bad / rest off when the WS drops. Markup lives in template.html's header (#health).",
+    "event": null,
+    "ws_message": null
+   },
+   "bridge": null,
+   "frame": null,
+   "gap": {
+    "status": "page-local",
+    "reason": "Health chrome (VIRTUAL_MPC_STUDY lift #3): a display dot fed by the bridge state snapshot \u2014 rig process health: presence of KickMain / KickDeviceControl / KickUserInterface / KickAudioEngine / KickAudioModel in /proc, as scanned by the bridge. It renders bridge-supplied state only; by design it emits no MPC event, no bridge message and no wire frame."
+   }
+  },
+  {
+   "id": "health-stream-dot",
+   "kind": "page-chrome",
+   "page_id": "health-stream",
+   "page": {
+    "element": "#health-stream",
+    "data_ctl": null,
+    "handler": "renderHealth(snapshot) in bridge.js sets the dot's data-state + title from the bridge {t:'state'} snapshot; healthSocketDown() forces bridge=bad / rest off when the WS drops. Markup lives in template.html's header (#health).",
+    "event": null,
+    "ws_message": null
+   },
+   "bridge": null,
+   "frame": null,
+   "gap": {
+    "status": "page-local",
+    "reason": "Health chrome (VIRTUAL_MPC_STUDY lift #3): a display dot fed by the bridge state snapshot \u2014 screen stream health: subscription state, achieved fps and last-frame age from the bridge's ScreenStreamer. It renders bridge-supplied state only; by design it emits no MPC event, no bridge message and no wire frame."
+   }
+  },
+  {
+   "id": "health-input-dot",
+   "kind": "page-chrome",
+   "page_id": "health-input",
+   "page": {
+    "element": "#health-input",
+    "data_ctl": null,
+    "handler": "renderHealth(snapshot) in bridge.js sets the dot's data-state + title from the bridge {t:'state'} snapshot; healthSocketDown() forces bridge=bad / rest off when the WS drops. Markup lives in template.html's header (#health).",
+    "event": null,
+    "ws_message": null
+   },
+   "bridge": null,
+   "frame": null,
+   "gap": {
+    "status": "page-local",
+    "reason": "Health chrome (VIRTUAL_MPC_STUDY lift #3): a display dot fed by the bridge state snapshot \u2014 panel input path: age and kind of the last control input the bridge received from any page. It renders bridge-supplied state only; by design it emits no MPC event, no bridge message and no wire frame."
+   }
   }
  ],
  "page_events_not_bridged": [
@@ -1636,6 +1726,11 @@
    "ws_message": "ready",
    "direction": "bridge->page",
    "reason": "Bridge greeting sent on WS connect."
+  },
+  {
+   "ws_message": "state",
+   "direction": "both",
+   "reason": "Health snapshot (lift #3): bridge.py state_snapshot() \u2014 bridge/dcl/engine/stream/input health \u2014 pushed on connect, every 2 s, and in reply to a page's {t:'state'} request; bridge.js renderHealth() draws the header dots from it. The same snapshot is served over HTTP at GET /state.json. Not a control."
   }
  ]
 }

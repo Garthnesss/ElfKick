@@ -22,10 +22,24 @@ The bridge answers {"t":"stream","on":true,"w":1024,"h":600,"fps":N}
 and then sends the frames as BINARY WebSocket messages (raw JPEG,
 1024x600). Capture runs only while at least one client is subscribed.
 Design: panel/BRIDGE.md.
+
+Post-input burst (Oct 30, 2026, fourth addendum): after any panel
+input that should change the device screen, the streamer drops its
+inter-frame pacing for ~1 s and captures back-to-back, so the change
+reaches the page at capture speed instead of poll speed. Repeated
+inputs extend the burst but a burst session is capped at 3 s, so
+knob drags cannot keep the capturer pinned.
+
+Health snapshot (same addendum): the bridge owns the rig-health
+facts and pushes {"t":"state", ...} to every WS client on connect,
+on request ({"t":"state"}), and every 2 s; the same snapshot is
+served over HTTP at GET /state.json. The page chrome renders it as
+health dots (bridge / DCL link / engine / screen / input).
 """
 
 import argparse
 import base64
+import collections
 import hashlib
 import json
 import os
@@ -296,6 +310,29 @@ class ScreenStreamer:
         self._stats_t0 = None
         self._stats_frames = 0
         self._stats_bytes = 0
+        # Health/burst bookkeeping (fourth addendum): frame timestamps
+        # feed the snapshot's fps + last-frame age; burst counters let
+        # the log prove a burst actually happened.
+        self.frame_times = collections.deque(maxlen=120)
+        self.last_frame_t = None
+        self.frames_sent = 0
+        self.burst_frames = 0
+        self._was_bursting = False
+        self._burst_session_frames = 0
+
+    # -- health views ----------------------------------------------------
+    def fps(self, now=None):
+        """Achieved frame rate over the last ~10 s of sent frames."""
+        now = now or time.time()
+        ts = [t for t in self.frame_times if now - t <= 10.0]
+        if len(ts) < 2 or ts[-1] <= ts[0]:
+            return 0.0
+        return (len(ts) - 1) / (ts[-1] - ts[0])
+
+    def last_frame_age(self, now=None):
+        if self.last_frame_t is None:
+            return None
+        return (now or time.time()) - self.last_frame_t
 
     # -- window discovery ----------------------------------------------------
     def _env(self):
@@ -356,14 +393,35 @@ class ScreenStreamer:
                     f"JPEG q{self.quality}, {STREAM_W}x{STREAM_H})")
             t0 = time.time()
             data = self._capture()
+            bursting = t0 < self.bridge.burst_until
             if data:
                 self.bridge.send_frame(data)
+                now = time.time()
+                self.frame_times.append(now)
+                self.last_frame_t = now
+                self.frames_sent += 1
                 self._stats_frames += 1
                 self._stats_bytes += len(data)
+                if bursting:
+                    self.burst_frames += 1
+                    self._burst_session_frames += 1
                 if time.time() - self._stats_t0 >= 15:
                     self._flush_stats("running")
+            if bursting and not self._was_bursting:
+                log("stream: burst started (post-input, back-to-back capture)")
+            if self._was_bursting and not bursting:
+                log(f"stream: burst ended ({self._burst_session_frames} "
+                    f"burst frames this session)")
+                self._burst_session_frames = 0
+            self._was_bursting = bursting
             dt = time.time() - t0
-            if dt < self.period:
+            if data is None:
+                # Failed capture (no window yet / window churn): never
+                # spin, burst or not — the window resolver needs air.
+                time.sleep(self.period)
+            elif bursting:
+                pass                    # back-to-back: capture speed is the pace
+            elif dt < self.period:
                 time.sleep(self.period - dt)
 
     def _flush_stats(self, why):
@@ -398,6 +456,164 @@ class Bridge:
         self.announced = False
         self.streamer = ScreenStreamer(self, display=stream_display,
                                        fps=stream_fps, quality=stream_quality)
+        # Health snapshot + burst state (fourth addendum).
+        self.started_t = time.time()
+        self.last_hw_rx_t = None        # last byte chunk seen from DCL
+        self.last_input_t = None        # last control input from the page
+        self.last_input_kind = None
+        self.burst_until = 0.0          # streamer captures back-to-back until then
+        self._burst_session_start = 0.0
+        self._state_seq = 0
+        self._state_lock = threading.Lock()
+        self._last_state_push_t = 0.0
+
+    # -- burst -----------------------------------------------------------
+    BURST_SPAN = 1.0        # seconds of back-to-back capture per input
+    BURST_CAP = 3.0         # a burst session never exceeds this, however
+                            # many inputs arrive inside it (coalescing)
+
+    def trigger_burst(self, why: str):
+        now = time.time()
+        if now > self._burst_session_start + self.BURST_CAP \
+                or self._burst_session_start == 0.0:
+            self._burst_session_start = now
+        self.burst_until = min(now + self.BURST_SPAN,
+                               self._burst_session_start + self.BURST_CAP)
+
+    def note_input(self, kind: str):
+        """Every real control input from the page funnels through here:
+        it feeds the snapshot's input age and fires the post-input
+        screen burst."""
+        self.last_input_t = time.time()
+        self.last_input_kind = kind
+        self.trigger_burst(kind)
+        self.push_state(min_interval=0.9)
+
+    # -- health snapshot ---------------------------------------------------
+    RIG_PROCESSES = ("KickMain", "KickDeviceControl", "KickUserInterface",
+                     "KickAudioEngine", "KickAudioModel")
+
+    def _proc_scan(self):
+        """(rig process name -> count, DCL holds the pty slave open?).
+
+        Reads /proc directly — the same evidence `ps` would give, with
+        no subprocess. The port check resolves our /dev/ttymxc0 symlink
+        to its pts and looks for any process holding that fd: that is
+        the difference between 'DCL is on the wire' and 'the wire is
+        dangling', which the snapshot's DCL dot reports honestly.
+        """
+        procs = {name: 0 for name in self.RIG_PROCESSES}
+        try:
+            pts = os.path.realpath(self.link_path)
+        except OSError:
+            pts = None
+        port_open = False
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                with open(f"/proc/{pid}/cmdline", "rb") as f:
+                    argv0 = f.read().split(b"\0", 1)[0].decode("utf-8", "replace")
+                name = os.path.basename(argv0)
+                if name in procs:
+                    procs[name] += 1
+            except OSError:
+                pass
+            if pts and not port_open:
+                try:
+                    for fd in os.listdir(f"/proc/{pid}/fd"):
+                        try:
+                            if os.readlink(f"/proc/{pid}/fd/{fd}") == pts:
+                                port_open = True
+                                break
+                        except OSError:
+                            continue
+                except OSError:
+                    pass
+        return procs, port_open
+
+    def state_snapshot(self):
+        now = time.time()
+        procs, port_open = self._proc_scan()
+        rx_age = None if self.last_hw_rx_t is None else now - self.last_hw_rx_t
+        if port_open and self.announced:
+            dcl_state = "ok"            # DCL holds the wire + handshake done;
+                                        # an idle device is legitimately quiet
+                                        # (rx age rides along as detail)
+        elif not port_open and not self.announced:
+            dcl_state = "bad"           # nothing has ever held the wire
+        else:
+            dcl_state = "warn"          # half-way: port held pre-handshake,
+                                        # or handshake seen but port dropped
+        core = ("KickMain", "KickUserInterface", "KickAudioEngine")
+        if all(procs[n] for n in core):
+            engine_state = "ok"
+        elif any(procs.values()):
+            engine_state = "warn"
+        else:
+            engine_state = "bad"
+        subs = self.stream_subscribers()
+        frame_age = self.streamer.last_frame_age(now)
+        if subs == 0:
+            stream_state = "off"
+        elif frame_age is not None and frame_age <= 2.0:
+            stream_state = "ok"
+        else:
+            stream_state = "warn"
+        input_age = None if self.last_input_t is None else now - self.last_input_t
+        if input_age is None:
+            input_state = "off"
+        elif input_age <= 60.0:
+            input_state = "ok"
+        else:
+            input_state = "warn"
+        with self._state_lock:
+            self._state_seq += 1
+            seq = self._state_seq
+        return {
+            "t": "state",
+            "seq": seq,
+            "bridge": {"state": "ok", "uptime_s": round(now - self.started_t, 1),
+                       "clients": len(self.clients)},
+            "dcl": {"state": dcl_state, "announced": self.announced,
+                    "port_open": port_open,
+                    "last_rx_age_s": None if rx_age is None else round(rx_age, 2)},
+            "engine": {"state": engine_state, "processes": procs},
+            "stream": {"state": stream_state, "subscribers": subs,
+                       "fps": round(self.streamer.fps(now), 2),
+                       "last_frame_age_s": None if frame_age is None
+                       else round(frame_age, 2),
+                       "frames_sent": self.streamer.frames_sent,
+                       "burst_frames": self.streamer.burst_frames,
+                       "burst_active": now < self.burst_until},
+            "input": {"state": input_state, "last_kind": self.last_input_kind,
+                      "last_age_s": None if input_age is None
+                      else round(input_age, 2)},
+        }
+
+    def push_state(self, min_interval=0.0, client=None):
+        now = time.time()
+        if min_interval and now - self._last_state_push_t < min_interval:
+            return
+        self._last_state_push_t = now
+        snap = self.state_snapshot()
+        if client is not None:
+            client.send_text(json.dumps(snap))
+        else:
+            self.broadcast(snap)
+
+    def state_pusher(self):
+        """The snapshot heartbeat: every 2 s to all connected clients.
+        (VMPC pushes at 10 Hz on change; our facts change slowly and
+        the interesting ones — input, announce — also push on event
+        via note_input / the state request, so 2 s is honest pacing
+        for a health line, not a data channel.)"""
+        while True:
+            time.sleep(2.0)
+            with self.clients_lock:
+                any_clients = bool(self.clients)
+            if any_clients:
+                self.push_state()
 
     # -- pty ---------------------------------------------------------------
     def open_pty(self):
@@ -446,6 +662,7 @@ class Bridge:
             if not chunk:
                 time.sleep(0.02)
                 continue
+            self.last_hw_rx_t = time.time()     # DCL is alive on the wire
             for (t, d, c, data) in self.parser.feed(chunk):
                 self.on_hw_frame(t, d, c, data)
 
@@ -521,6 +738,9 @@ class Bridge:
             log(f"ws rx (bad json): {text[:80]}")
             return
         kind = msg.get("t")
+        if kind == "state":
+            self.push_state(client=client)
+            return
         if kind == "stream":
             on = bool(msg.get("on"))
             client.wants_stream = on
@@ -546,11 +766,14 @@ class Bridge:
                              f"pad {msg['pad']} down")
             else:
                 self.send_hw(PKT_PAD, 0, [pad0, 0, 0, 0], f"pad {msg['pad']} up")
+            self.note_input("pad")
             return
         if kind == "button":
             bid = msg.get("id")
             down = bool(msg.get("down"))
             self.on_button(bid, down)
+            if down:
+                self.note_input("button")
             return
         if kind == "knob":
             kid = msg.get("id")
@@ -565,6 +788,7 @@ class Bridge:
                 direction = 1 if steps > 0 else 0   # 1=CW, 0=CCW (KnobDirection)
                 self.send_hw(PKT_KNOBS, 1, [KNOB_CODES[kid], direction, abs(steps)],
                              f"knob {kid} {'+' if steps > 0 else ''}{steps}")
+                self.note_input("knob")
             return
         if kind == "jog":
             delta = int(msg.get("delta", 0))
@@ -583,6 +807,7 @@ class Bridge:
                 steps = min(abs(delta), 8)
                 self.send_hw(PKT_KNOBS, 0, [0, direction, steps],
                              f"jog {'+' if delta > 0 else '-'}{steps} (rotary)")
+                self.note_input("jog")
             return
         if kind == "jogpush":
             # Jog push = EN_KNOB_ENTER. Despite the name it is NOT a
@@ -602,10 +827,13 @@ class Bridge:
             down = bool(msg.get("down"))
             self.send_hw(PKT_BUTTON, 0, [EN_KNOB_ENTER, 1 if down else 0],
                          f"jog push {'down' if down else 'up'} (EN_KNOB_ENTER)")
+            if down:
+                self.note_input("jogpush")
             return
         if kind == "strip":
             pct = int(round(float(msg.get("value", 0.0)) * 100))
             self.send_hw(PKT_SLIDER, 0, [max(0, min(100, pct))], f"strip {pct}%")
+            self.note_input("strip")
             return
         log(f"ws rx (unhandled): {text[:120]}")
 
@@ -680,6 +908,7 @@ class Bridge:
             self.clients.append(client)
         log(f"ws client connected: {addr}")
         client.send_text(json.dumps({"t": "ready"}))
+        self.push_state(client=client)      # health dots light up at once
         try:
             for text in client.frames():
                 self.on_web_message(client, text)
@@ -695,6 +924,25 @@ class Bridge:
                 conn.close()
             except OSError:
                 pass
+
+
+class PanelHandler(SimpleHTTPRequestHandler):
+    """Serves the panel directory, plus GET /state.json — the same
+    health snapshot the WS pushes as {"t":"state"} (fourth addendum),
+    for curl-level debugging and HTTP fallbacks."""
+
+    bridge = None       # set in main()
+
+    def do_GET(self):
+        if self.path.split("?", 1)[0] == "/state.json" and self.bridge is not None:
+            body = json.dumps(self.bridge.state_snapshot()).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        super().do_GET()
 
 
 def main():
@@ -720,13 +968,16 @@ def main():
     bridge.open_pty()
     threading.Thread(target=bridge.pty_reader, daemon=True).start()
     threading.Thread(target=bridge.streamer.run, daemon=True).start()
+    threading.Thread(target=bridge.state_pusher, daemon=True).start()
 
     if not args.no_http:
         panel_dir = os.path.dirname(os.path.abspath(__file__))
-        handler = lambda *a, **kw: SimpleHTTPRequestHandler(*a, directory=panel_dir, **kw)
+        PanelHandler.bridge = bridge
+        handler = lambda *a, **kw: PanelHandler(*a, directory=panel_dir, **kw)
         httpd = ThreadingHTTPServer((args.host, args.http_port), handler)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        log(f"panel served at http://{args.host}:{args.http_port}/index.html")
+        log(f"panel served at http://{args.host}:{args.http_port}/index.html "
+            f"(health snapshot at /state.json)")
 
     try:
         bridge.ws_server(args.host, args.ws_port)

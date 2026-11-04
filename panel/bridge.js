@@ -24,6 +24,43 @@
     badge.style.color = ok ? '#5dff9a' : '#8a8a92';
   }
 
+  /* ---- health dots: the bridge state snapshot, rendered ----
+   * The bridge owns the rig facts and pushes {"t":"state", ...}
+   * (connect, request, every 2 s; same snapshot as HTTP /state.json).
+   * The page only renders: each header dot takes the snapshot's
+   * state verbatim (ok/warn/bad/off) and a detail line as its title.
+   * When the socket itself is down, bridge=bad and the rest go off —
+   * the page never invents a healthier picture than it can see. */
+  const HEALTH_IDS = ['bridge', 'dcl', 'engine', 'stream', 'input'];
+  function setDot(name, state, detail) {
+    const el = document.getElementById('health-' + name);
+    if (!el) return;
+    el.dataset.state = state || 'off';
+    if (detail) el.parentElement.title = detail;
+  }
+  function fmtAge(s) {
+    if (s === null || s === undefined) return 'never';
+    return s < 1.5 ? 'just now' : s < 90 ? `${Math.round(s)}s ago` : `${Math.round(s / 60)}m ago`;
+  }
+  function renderHealth(s) {
+    setDot('bridge', s.bridge?.state, `bridge: up ${Math.round(s.bridge?.uptime_s ?? 0)}s, ${s.bridge?.clients ?? '?'} page(s) connected`);
+    const d = s.dcl || {};
+    setDot('dcl', d.state, `DCL link: ${d.announced ? 'handshake seen' : 'no handshake yet'}, port ${d.port_open ? 'held by DCL' : 'not held'}, last frame ${fmtAge(d.last_rx_age_s)}`);
+    const e = s.engine || {};
+    const down = Object.entries(e.processes || {}).filter(([, n]) => !n).map(([k]) => k);
+    setDot('engine', e.state, down.length ? `engine: down/missing: ${down.join(', ')}` : 'engine: all rig processes present');
+    const st = s.stream || {};
+    setDot('stream', st.state, st.state === 'off' ? 'screen: no page subscribed'
+      : `screen: ${st.fps ?? 0} fps, last frame ${fmtAge(st.last_frame_age_s)}, ${st.frames_sent ?? 0} frames sent`);
+    const inp = s.input || {};
+    setDot('input', inp.state, inp.last_age_s == null ? 'input: nothing received yet'
+      : `input: last was ${inp.last_kind || '?'} ${fmtAge(inp.last_age_s)}`);
+  }
+  function healthSocketDown() {
+    setDot('bridge', 'bad', 'bridge: socket down — no snapshot can arrive');
+    for (const n of HEALTH_IDS.slice(1)) setDot(n, 'off', 'unknown — bridge unreachable');
+  }
+
   function send(obj) {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
   }
@@ -93,6 +130,8 @@
       setBadge('bridge: connected — panel drives the ElfKick runtime', true);
       send({ t: 'hello', knobs: { ...MPC.knobs } });
       send({ t: 'stream', on: true });         // ask for the GUI screen stream
+      send({ t: 'state' });                    // health snapshot, immediately
+      setDot('bridge', 'ok', 'bridge: socket open, snapshot requested');
       console.log('[bridge] connected; built-in kit silenced (MPC.sound=false)');
     };
     ws.onmessage = (ev) => {
@@ -101,12 +140,14 @@
       if (msg.t === 'led') MPC.setLed(msg.id, msg.on);
       else if (msg.t === 'padlight') MPC.setPad(msg.pad, msg.color, msg.level);
       else if (msg.t === 'stream') { if (msg.on) startScreen(); else stopScreen(); }
+      else if (msg.t === 'state') renderHealth(msg);
       else if (msg.t === 'log') console.log('[bridge]', msg.msg);
     };
     ws.onclose = ws.onerror = () => {
       if (bridged) console.log('[bridge] disconnected');
       bridged = false;
       stopScreen();
+      healthSocketDown();
       setBadge('bridge: disconnected (panel standalone)', false);
       scheduleRetry();
     };
